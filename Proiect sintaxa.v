@@ -26,11 +26,14 @@ Inductive String_Value :=
 | Cstring : string -> String_Value.
 
 Inductive Array_Value :=
+| name : string -> Array_Value
 | error_array : Array_Value
 | empty_array : Array_Value
 | start_array : Z -> Array_Value
 | Carray : Array_Value -> Z -> Array_Value.
 
+Compute Carray (Carray (start_array 3) 9) 5.
+ 
 Coercion Cnum: Z >-> Number_Value.
 Coercion Cbool: bool >-> Boolean_Value.
 Coercion Cstring: string >-> String_Value.
@@ -45,8 +48,6 @@ Inductive AExp :=
 | adiv: AExp -> AExp -> AExp 
 | amod: AExp -> AExp -> AExp.
 
-
-
 (* Notatiile pentru operatiile aritmetice *)
 Notation "A +a B" := (aplus A B)(at level 50, left associativity).
 Notation "A -a B" := (asub A B)(at level 50, left associativity).
@@ -57,25 +58,42 @@ Notation "A %a B" := (amod A B)(at level 45, left associativity).
 Coercion acon: Number_Value >-> AExp.
 Coercion avar: string >-> AExp.
 
-Compute ((Cnum 5) -a "string").
+Compute ((Cnum 5) -a "string"). (* EXEMPLU AExp *)
 
 (* Expresii boolene *)
 Inductive BExp :=
 | bvar : string -> BExp
 | bcon: Boolean_Value -> BExp
+| begal: AExp -> AExp -> BExp
 | blt : AExp -> AExp -> BExp
 | bnot : BExp -> BExp
 | band : BExp -> BExp -> BExp
 | bor : BExp -> BExp -> BExp.
 
+(* Notations used for boolean operations *)
+Notation "A <b B" := (blt A B) (at level 70).
+Notation "A ==b B" := (begal A B) (at level 70).
+Notation "!b A" := (bnot A)(at level 51, left associativity).
+Notation "A &&b B" := (band A B)(at level 52, left associativity).
+Notation "A ||b B" := (bor A B)(at level 53, left associativity).
 
+Coercion bcon: Boolean_Value >-> BExp.
+Coercion bvar: string >-> BExp.
+
+Compute !b (("a" +a 5) ==b 7). (* EXEMPLU BExp *)
 
 (* Expresii string-uri *)
 Inductive STExp :=
-| svar : string -> STExp
-| svar : String_Value -> STExp
+| scon : String_Value -> STExp
 | sconcat : STExp ->STExp -> STExp
 | smul : STExp -> Z -> STExp.
+
+Notation "A +Us+ B" := (sconcat A B)(at level 70).
+Notation "A *** B" := (smul A B)(at level 70).
+
+Coercion scon: String_Value >-> STExp.
+
+Compute ("ceva" *** 3) +Us+ "BUN".
 
 (* Expresii vectori *)
 Inductive VExp :=
@@ -85,6 +103,18 @@ Inductive VExp :=
 | vmin : VExp -> Z -> VExp
 | vsuply : VExp -> Z -> VExp
 | vconcat : VExp -> VExp -> VExp.
+
+Coercion vvar: Array_Value >-> VExp.
+
+Notation "A +v B" := (vadd A B)(at level 70).
+Notation "A *v B" := (vmull A B)(at level 70).
+Notation "A -v B" := (vmin A B)(at level 70).
+Notation "A +Uv B" := (vsuply A B)(at level 70).
+Notation "A +Uv+ B" := (vconcat A B)(at level 70).
+
+Compute ((Carray (Carray (start_array 3) 9) 5) +Uv+ (start_array 15)) -v 15.
+
+
 
 Inductive Cases :=
 | first : string -> Cases
@@ -99,7 +129,7 @@ Inductive Stmt :=
 | number_assign : string -> AExp -> Stmt
 | bool_assign : string -> BExp -> Stmt
 | string_assign : string -> STExp -> Stmt
-| vector_assign : string -> STExp -> Stmt
+| array_assign : string -> STExp -> Stmt
 | sequence : Stmt -> Stmt -> Stmt
 | while : BExp -> Stmt -> Stmt
 | do_while: Stmt -> BExp -> Stmt
@@ -108,22 +138,38 @@ Inductive Stmt :=
 | continue : Stmt
 | ifthenelse : BExp -> Stmt -> Stmt -> Stmt
 | ifthen : BExp -> Stmt -> Stmt
-| function : string -> Stmt -> Stmt
+| function_decl : string -> Stmt -> Stmt
 | function_call : string -> Stmt
 | switch_case : Cases -> Stmt.
 
 
-
-(* Notations used for boolean operations *)
-Notation "A <' B" := (blt A B) (at level 70).
-Notation "!' A" := (bnot A)(at level 51, left associativity).
-Notation "A &&' B" := (band A B)(at level 52, left associativity).
-Notation "A ||' B" := (bor A B)(at level 53, left associativity).
-
 (* Notations for Statements *)
-Notation "X :n= A" := (nat_assign X A)(at level 90).
+Notation "X :n= A" := (number_assign X A)(at level 90).
 Notation "X :b= A" := (bool_assign X A)(at level 90).
-Notation "'iNat' X ::= A" := (nat_decl X A)(at level 90).
-Notation "'iBool' X ::= A" := (bool_decl X A)(at level 90).
+Notation "X :s= A" := (string_decl X A)(at level 90).
+Notation "X :a= A" := (array_decl X A)(at level 90).
+Notation "'INat' X ::= A" := (number_decl X A)(at level 90).
+Notation "'IBool' X ::= A" := (bool_decl X A)(at level 90).
+Notation "'IArr' X ::= A" := (array_decl X A)(at level 90).
+Notation "'IStr' X ::= A" := (string_decl X A)(at level 90).
 Notation "S1 ;; S2" := (sequence S1 S2) (at level 93, right associativity).
-Notation "'fors' ( A ~ B ~ C ) { S }" := (A ;; while B ( S ;; C )) (at level 97).
+Notation "'FOR' ( A ~ B ~ C ) { S }" := (A ;; while B ( S ;; C )) (at level 97).
+Notation "'IF B 'THEN' S" := (ifthen B S) (at level 50).
+Notation "'IF' B 'THEN' S1 'ELSE' S2" :=(ifthenelse B S1 S2)(at level 50).
+Notation "'DO_WHILE' { S } ( B )" :=(do_while S B)(at level 97).
+Notation "'CALL' [ S ]" := (function_call S)(at level 97).
+Notation "'function' N '()' '{' S '}'" := (function_decl N S) (at level 97).
+
+Definition Program :=
+  "b" :b= bcon (Cbool true) ;;
+  "a" :n= 15 -a "b" ;;
+  "string" :s= "text" +Us+ " ajutator" ;;
+  "array" :a= Carray (Carray (start_array 3) 9) 5 ;;
+  INat "a"  ::= 13 ;;
+  IBool "b" ::= ("a" ==b 0) ;;
+  IArr "array" ::= name "array" +Uv+ name "array"  ;;
+  CALL [ "main" ] ;;
+  function "main" () { "a" :n= 15 -a "b" } 
+.
+
+Print Program.
