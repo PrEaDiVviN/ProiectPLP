@@ -8,9 +8,8 @@ Scheme Equality for string. (* Creaza functia de egalitate pe string-uri automat
 Require Import Coq.ZArith.ZArith.
 Open Scope Z_scope.  
 
-(* Liste *)
+(* Liste si notatiile pentru ele *)
 Local Open Scope list_scope.
-
 
 Inductive Number_Value :=
 | error_number : Number_Value
@@ -116,10 +115,6 @@ Compute ((Carray (Carray (start_array 3) 9) 5) +Uv+ (start_array 15)) -v 15.
 
 
 
-Inductive Cases :=
-| first : string -> Cases
-| next : string -> Cases -> Cases.
-
 (* Sectiunea pentru statement-uri *)
 Inductive Stmt :=
 | number_decl: string -> AExp -> Stmt  
@@ -140,7 +135,8 @@ Inductive Stmt :=
 | ifthen : BExp -> Stmt -> Stmt
 | function_decl : string -> Stmt -> Stmt
 | function_call : string -> Stmt
-| switch_case : Cases -> Stmt.
+| case : AExp -> Stmt -> Stmt
+| switch_case : AExp -> list Stmt  -> Stmt.
 
 
 (* Notations for Statements *)
@@ -157,8 +153,17 @@ Notation "'FOR' ( A ~ B ~ C ) { S }" := (A ;; while B ( S ;; C )) (at level 97).
 Notation "'IF B 'THEN' S" := (ifthen B S) (at level 50).
 Notation "'IF' B 'THEN' S1 'ELSE' S2" :=(ifthenelse B S1 S2)(at level 50).
 Notation "'DO_WHILE' { S } ( B )" :=(do_while S B)(at level 97).
+(*
 Notation "'CALL' [ S ]" := (function_call S)(at level 97).
 Notation "'function' N '()' '{' S '}'" := (function_decl N S) (at level 97).
+*)
+
+Module ListNotations.
+Notation "[ ]" := nil. 
+Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
+
+Notation "'CASE' '@' N '@'  '#' S '#'" := (case N S) (at level 97).
+Notation "'SWITCH' '(' A ')' '{' B '}'" := (switch_case A B)(at level 100).
 
 Definition Program :=
   "b" :b= bcon (Cbool true) ;;
@@ -168,8 +173,10 @@ Definition Program :=
   INat "a"  ::= 13 ;;
   IBool "b" ::= ("a" ==b 0) ;;
   IArr "array" ::= name "array" +Uv+ name "array"  ;;
-  CALL [ "main" ] ;;
-  function "main" () { "a" :n= 15 -a "b" } 
+  SWITCH ( "c" ) { [ (CASE @ 5 @ # INat "a" ::= 13 #) ; 
+                     (CASE @ 10 @ # INat "a" ::= 15 #) 
+                   ] 
+                 } 
 .
 
 Print Program.
