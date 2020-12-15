@@ -51,7 +51,7 @@ Inductive AExp :=
 Notation "A +a B" := (aplus A B)(at level 50, left associativity).
 Notation "A -a B" := (asub A B)(at level 50, left associativity).
 Notation "A *a B" := (amul A B)(at level 48, left associativity).
-Notation "A /a B" := (adiv A B)(at level 48, left associativity).
+Notation "A \a B" := (adiv A B)(at level 48, left associativity).
 Notation "A %a B" := (amod A B)(at level 45, left associativity).
 
 Coercion acon: Number_Value >-> AExp.
@@ -149,10 +149,11 @@ Notation "'IBool' X ::= A" := (bool_decl X A)(at level 90).
 Notation "'IArr' X ::= A" := (array_decl X A)(at level 90).
 Notation "'IStr' X ::= A" := (string_decl X A)(at level 90).
 Notation "S1 ;; S2" := (sequence S1 S2) (at level 93, right associativity).
-Notation "'FOR' '$' A '~' B '~' C '$' '{' S '}'" := (for_ A B C S) (at level 90).
-Notation "'IF B 'THEN' S" := (ifthen B S) (at level 90).
+Notation "'FOR' A '~~' B '~~' C '{' S '}'" := (for_ A B C S) (at level 90).
+Notation "'IF_' B 'THEN_' S" := (ifthen B S) (at level 90).
 Notation "'IF' B 'THEN' S1 'ELSE' S2" :=(ifthenelse B S1 S2)(at level 50).
 Notation "'DO_WHILE' '<<<<' S '>>>>' B" :=(do_while S B)(at level 89).
+Notation "'WHILE' B '{' S '}'" := (while B S)(at level 89).
 
 Notation "'CALL' ? S ?" := (function_call S)(at level 90).
 Notation "'function' N '&' L '&' '{' S '}'" := (function_decl N L S) (at level 91).
@@ -174,6 +175,7 @@ Definition Program :=
   INat "a"  ::= 13 ;;
   IBool "b" ::= ("a" ==b 0) ;;
   IArr "array" ::= name "array" +Uv+ name "array"  ;;
+  IStr "ceva" ::= "mai" ;;
   function "do_something"  & [ INat "c" ::= 0 ] &  { "b" :b= bcon (Cbool false) } ;;
   function "main" & [] &
   {
@@ -187,8 +189,132 @@ Definition Program :=
           ] 
         } ;; 
     DO_WHILE <<<< (break ;; continue) >>>> ("a" ==b 3) ;;
-    CALL ? "do_something" ? 
+    CALL ? "do_something" ? ;;
+    IF_ ( "a" <b "d" )
+    THEN_ ( "array" :a= Carray(start_array 3) 5) 
   }
 .
 
 Print Program.
+
+Inductive Result :=
+  | err_undecl : Result
+  | err_assign : Result
+  | default : Result
+  | res_nat : Number_Value -> Result
+  | res_bool : Boolean_Value -> Result
+  | res_string : String_Value -> Result
+  | res_array : Array_Value -> Result
+  | code : Stmt -> Result. (* The functions' names are mapped to the code inside the function *)
+
+
+
+Inductive Mem :=
+  | mem_default : Mem
+  | offset : nat -> Mem. (* offset which indicates the current number of memory zones *)
+
+Scheme Equality for Mem.
+
+(* Environment *)
+Definition Env := string -> Mem.
+
+(* Memory Layer *)
+Definition MemLayer := Mem -> Result.
+
+(* Stack *)
+Definition Stack := list Env.
+
+(* Configuration *)
+Inductive Config :=
+  (* nat: last memory zone
+     Env: environment
+     MemLayer: memory layer
+     Stack: stack 
+  *)
+  | config : nat -> Env -> MemLayer -> Stack -> Config.
+
+(* Function for updating the environment *)
+Definition update_env (env: Env) (x: string) (n: Mem) : Env :=
+  fun y =>
+      (* If the variable has assigned a default memory zone, 
+         then it will be updated with the current memory offset *)
+      if (andb (string_beq x y ) (Mem_beq (env y) mem_default))
+      then
+        n
+      else
+        (env y).
+
+Definition env : Env := fun x => mem_default.
+
+(* Initially each variable is assigned to a default memory zone *)
+Compute (env "z"). (* The variable is not yet declared *)
+
+(* Example of updating the environment, based on a specific memory offset *)
+Definition env2  := (update_env env "x" (offset 9)).
+
+Compute env2 "x".
+
+Definition check_eq_over_types (t1 : Result) (t2 : Result) : bool :=
+  match t1 with
+  | err_assign => match t2 with 
+                    | err_assign => true
+                    | _ => false
+                     end
+  | err_undecl => match t2 with
+                    | err_undecl => true
+                    | _ => false
+                     end
+  | default => match t2 with
+                 | default => true
+                 | _ => false
+               end
+  | res_bool _x => match t2 with
+                     | res_bool _y => true
+                     | _ => false
+                   end
+  | res_nat _x => match t2 with
+                     | res_nat _y => true
+                     | _ => false
+                  end
+  | res_string _x => match t2 with
+                       | res_string _y => true
+                       | _ => false
+                      end
+  | res_array _x => match t2 with
+                       | res_array _y => true
+                       | _ => false
+                    end
+  | code _x => match t2 with 
+                 | code _y => true
+                 | _ => false
+               end
+end.
+(*
+
+(* Function for updating the memory layer *)
+Definition update_mem (mem : MemLayer) (env : Env) (x : string) (type : Mem) (v : Result) : MemLayer :=
+  fun y =>
+    (* To be implemented based on the functionalities of your own language
+       This implementation should be similar to the "update" function from "Week_7.v" *)
+
+
+
+(* Each variable/function name is initially mapped to undeclared *)
+Definition mem : MemLayer := fun x => err_undecl.
+
+(* Pay attention!!! In order to be able to monitor the state of the entire program, you need to
+   implement a function "update_conf", which updates the 
+   entire configuration (environment, memory layout and stack).  
+   config : nat -> Env -> MemLayer -> Stack -> Config (the first value represents the last memory zone, 
+   and you will need to find a way to increment it each time a new variable/function is declared)
+*)
+
+(* Functions / global/local variables *)
+(*
+  - Restructurare program: declaratii de variabile / declaratii de functii
+  - In Stmt trebuie adaugat si apelul de functii (care este sintaxa?)
+  - Liste de argumente pentru functii: List type.
+  - Atentie la sintaxa!!!
+  - Referinte/pointeri: lucrul cu zona de memorie
+  - Vectori: de asigurat ca se pot pastra n zone de memorie in functie de dimensiunea vectorului.
+*)
