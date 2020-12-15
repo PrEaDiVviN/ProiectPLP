@@ -70,8 +70,8 @@ Inductive BExp :=
 | bor : BExp -> BExp -> BExp.
 
 (* Notations used for boolean operations *)
-Notation "A <b B" := (blt A B) (at level 70).
-Notation "A ==b B" := (begal A B) (at level 70).
+Notation "A <b B" := (blt A B) (at level 50).
+Notation "A ==b B" := (begal A B) (at level 50).
 Notation "!b A" := (bnot A)(at level 51, left associativity).
 Notation "A &&b B" := (band A B)(at level 52, left associativity).
 Notation "A ||b B" := (bor A B)(at level 53, left associativity).
@@ -133,7 +133,7 @@ Inductive Stmt :=
 | continue : Stmt
 | ifthenelse : BExp -> Stmt -> Stmt -> Stmt
 | ifthen : BExp -> Stmt -> Stmt
-| function_decl : string -> Stmt -> Stmt
+| function_decl : string -> list Stmt -> Stmt -> Stmt
 | function_call : string -> Stmt
 | case : AExp -> Stmt -> Stmt
 | switch_case : AExp -> list Stmt  -> Stmt.
@@ -149,21 +149,22 @@ Notation "'IBool' X ::= A" := (bool_decl X A)(at level 90).
 Notation "'IArr' X ::= A" := (array_decl X A)(at level 90).
 Notation "'IStr' X ::= A" := (string_decl X A)(at level 90).
 Notation "S1 ;; S2" := (sequence S1 S2) (at level 93, right associativity).
-Notation "'FOR' ( A ~ B ~ C ) { S }" := (A ;; while B ( S ;; C )) (at level 97).
-Notation "'IF B 'THEN' S" := (ifthen B S) (at level 50).
+Notation "'FOR' '$' A '~' B '~' C '$' '{' S '}'" := (for_ A B C S) (at level 90).
+Notation "'IF B 'THEN' S" := (ifthen B S) (at level 90).
 Notation "'IF' B 'THEN' S1 'ELSE' S2" :=(ifthenelse B S1 S2)(at level 50).
-Notation "'DO_WHILE' { S } ( B )" :=(do_while S B)(at level 97).
-(*
-Notation "'CALL' [ S ]" := (function_call S)(at level 97).
-Notation "'function' N '()' '{' S '}'" := (function_decl N S) (at level 97).
-*)
+Notation "'DO_WHILE' '<<<<' S '>>>>' B" :=(do_while S B)(at level 89).
+
+Notation "'CALL' ? S ?" := (function_call S)(at level 90).
+Notation "'function' N '&' L '&' '{' S '}'" := (function_decl N L S) (at level 91).
+
 
 Module ListNotations.
 Notation "[ ]" := nil. 
 Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
 
-Notation "'CASE' '@' N '@'  '#' S '#'" := (case N S) (at level 97).
-Notation "'SWITCH' '(' A ')' '{' B '}'" := (switch_case A B)(at level 100).
+Notation "'CASE' '@' N '@'  '#' S '#'" := (case N S) (at level 90).
+Notation "'SWITCH' '(' A ')' '{' B '}'" := (switch_case A B)(at level 90).
+
 
 Definition Program :=
   "b" :b= bcon (Cbool true) ;;
@@ -173,10 +174,21 @@ Definition Program :=
   INat "a"  ::= 13 ;;
   IBool "b" ::= ("a" ==b 0) ;;
   IArr "array" ::= name "array" +Uv+ name "array"  ;;
-  SWITCH ( "c" ) { [ (CASE @ 5 @ # INat "a" ::= 13 #) ; 
-                     (CASE @ 10 @ # INat "a" ::= 15 #) 
-                   ] 
-                 } 
+  function "do_something"  & [ INat "c" ::= 0 ] &  { "b" :b= bcon (Cbool false) } ;;
+  function "main" & [] &
+  {
+    IF ( "c" ==b 15 )
+    THEN ( "c" :n= "c" +a 1 )
+    ELSE
+        ( "b" :b= bcon (Cbool false ) ) ;;
+    SWITCH ( "c" ) 
+        { [ (CASE @ 5 @ # INat "a" ::= 13 #) ; 
+            (CASE @ 10 @ # INat "a" ::= 15 #) 
+          ] 
+        } ;; 
+    DO_WHILE <<<< (break ;; continue) >>>> ("a" ==b 3) ;;
+    CALL ? "do_something" ? 
+  }
 .
 
 Print Program.
