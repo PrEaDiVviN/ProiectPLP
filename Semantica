@@ -67,111 +67,6 @@ end.
 
 Compute (Amod (Cnum 1) (Cnum 2)).
 
-Inductive Result :=
-| err_undecl : Result
-| err_assign : Result
-| default : Result
-| res_nat : Number_Value -> Result.
-(* The functions' names are mapped to the code inside the function *)
-
-Definition check_eq_over_types (t1 : Result) (t2 : Result) : bool :=
-  match t1 with
-  | err_assign => match t2 with 
-                    | err_assign => true
-                    | _ => false
-                     end
-  | err_undecl => match t2 with
-                    | err_undecl => true
-                    | _ => false
-                     end
-  | default => match t2 with
-                 | default => true
-                 | _ => false
-               end
-  | res_nat _x => match t2 with
-                     | res_nat _y => true
-                     | _ => false
-                  end
-end.
-
-Inductive Memory_space :=
-| mem_default : Memory_space
-| offset : nat -> Memory_space. (* offset which indicates the current number of memory zones *)
-
-Scheme Equality for Memory_space.
-
-(* Environment *)
-Definition Env := string -> Memory_space.
-
-Definition base_env : Env := fun x => mem_default.
-
-Compute base_env "string".
-
-(* Memory Layer *)
-Definition Memory_object := Memory_space -> Result.
-
-(* Pentru un anumit string pune un nou offset *)
-Definition update_env (env: Env) (x: string) (n: Memory_space) : Env :=
-  fun y =>
-      (* If the variable has assigned a default memory zone, 
-         then it will be updated with the current memory offset *)
-      if (andb (string_beq x y ) (Memory_space_beq (env y) mem_default))
-      then
-        n
-      else
-        (env y).
-
-Definition new := update_env base_env "string" (offset 1).
-Compute new "string".
-Definition update_mem (object : Memory_object) (env : Env) (x : string) (space : Memory_space) (v : Result) : Memory_object :=
-  fun y =>
-    if(andb (Memory_space_beq y space) (Memory_space_beq (env x) space))
-    then
-      if(andb (check_eq_over_types err_undecl (object y)) (negb (check_eq_over_types default v)) )
-      then
-          err_undecl
-      else
-        if( andb (check_eq_over_types err_undecl (object y)) (check_eq_over_types default v))
-        then default
-        else
-          if( orb (check_eq_over_types default (object y)) (check_eq_over_types v (object y)) )
-          then v
-          else err_assign
-    else (object y).
-
-Inductive aeval : AExp -> Env -> Memoryobject -> Number_Value -> Prop :=
-| const : forall n sigma, anum n =[ sigma ]=> n
-| var : forall v sigma, avar v =[ sigma ]=>  match (sigma v) with
-                                              | res_nat x => x
-                                              | _ => error_nat
-                                              end
-| add : forall a1 a2 i1 i2 sigma n,
-    a1 =[ sigma ]=> i1 ->
-    a2 =[ sigma ]=> i2 ->
-    n = (plus_ErrorNat i1 i2) ->
-    a1 +' a2 =[sigma]=> n
-| times : forall a1 a2 i1 i2 sigma n,
-    a1 =[ sigma ]=> i1 ->
-    a2 =[ sigma ]=> i2 ->
-    n = (mul_ErrorNat i1 i2) ->
-    a1 *' a2 =[sigma]=> n
-| substract : forall a1 a2 i1 i2 sigma n,
-    a1 =[ sigma ]=> i1 ->
-    a2 =[ sigma ]=> i2 ->
-    n = (sub_ErrorNat i1 i2) ->
-    a1 -' a2 =[sigma]=> n
-| division : forall a1 a2 i1 i2 sigma n,
-    a1 =[ sigma ]=> i1 ->
-    a2 =[ sigma ]=> i2 ->
-    n = (div_ErrorNat  i1 i2) ->
-    a1 /' a2 =[sigma]=> n
-| modulo : forall a1 a2 i1 i2 sigma n,
-    a1 =[ sigma ]=> i1 ->
-    a2 =[ sigma ]=> i2 ->
-    n = (mod_ErrorNat i1 i2) ->
-    a1 %' a2 =[sigma]=> n
-where "a =[ sigma ]=> n" := (aeval a sigma n).
-
 Inductive Boolean_Value :=
 | error_bool : Boolean_Value
 | Cbool : bool -> Boolean_Value.
@@ -271,7 +166,6 @@ end.
 
 Compute Smul (Cstring "alin_") (5).
 
-
 Inductive Array_Value :=
 | error_array : Array_Value
 | start_array : Array_Value
@@ -280,8 +174,8 @@ Inductive Array_Value :=
 
 (* Expresii vectori *)
 Inductive VExp :=
-| vcon : string -> VExp
-| vvar : Array_Value -> VExp
+| vvar : string -> VExp
+| vcon : Array_Value -> VExp
 | vadd : VExp -> nat -> VExp
 | vmull : VExp -> nat -> VExp
 | vmin : VExp -> nat -> VExp
@@ -295,7 +189,7 @@ Notation "A -v B" := (vmin A B)(at level 70).
 Notation "A +Uv B" := (vsuply A B)(at level 70).
 Notation "A +Uv+ B" := (vconcat A B)(at level 70).
 
-Definition Vsupply (V1 : Array_Value) (x : nat) : Array_Value :=
+Definition Vsuply (V1 : Array_Value) (x : nat) : Array_Value :=
 match V1 with
 | Carray V1' a => (Carray (Carray V1' a) x)
 | start_array => (Carray start_array x)
@@ -347,8 +241,354 @@ Fixpoint Vconcat (V1 : Array_Value) (V2 : Array_Value) : Array_Value :=
 match V1,V2 with
 | error_array, _ => error_array
 | _ , error_array => error_array 
-| V1', Carray v a => Vsupply (Vconcat V1' v) a (* Vconcat (Vsupply V1' a) v === FOR REVERSE CONCAT*)
+| V1', Carray v a => Vsuply (Vconcat V1' v) a (* Vconcat (Vsupply V1' a) v === FOR REVERSE CONCAT*)
 | V1' , start_array => V1'
 end. 
 
 Compute Vconcat (Carray (Carray (Carray (Carray start_array 4) 5) 10) 7) (Carray (Carray start_array 5) 7). 
+
+Inductive Result :=
+| err_undecl : Result
+| err_assign : Result
+| default : Result
+| res_nat : Number_Value -> Result
+| res_bool : Boolean_Value -> Result
+| res_string : String_Value -> Result
+| res_array : Array_Value -> Result.
+(* The functions' names are mapped to the code inside the function *)
+
+Definition check_eq_over_types (t1 : Result) (t2 : Result) : bool :=
+  match t1 with
+  | err_assign => match t2 with 
+                    | err_assign => true
+                    | _ => false
+                     end
+  | err_undecl => match t2 with
+                    | err_undecl => true
+                    | _ => false
+                     end
+  | default => match t2 with
+                 | default => true
+                 | _ => false
+               end
+  | res_nat _x => match t2 with
+                     | res_nat _y => true
+                     | _ => false
+                  end
+  | res_bool _x => match t2 with
+                     | res_bool _y => true
+                     | _ => false
+                  end
+  | res_string _x => match t2 with
+                     | res_string _y => true
+                     | _ => false
+                  end  
+  | res_array _x => match t2 with
+                     | res_array _y => true
+                     | _ => false
+                  end 
+end.
+
+Inductive Memory_space :=
+| mem_default : Memory_space
+| offset : nat -> Memory_space. (* offset which indicates the current number of memory zones *)
+
+Scheme Equality for Memory_space.
+
+(* Environment *)
+Definition Env := string -> Memory_space.
+
+Definition base_env : Env := fun x => mem_default.
+
+Compute base_env "string".
+
+(* Memory Layer *)
+Definition Memory_object := Memory_space -> Result.
+
+Definition base_memory : Memory_object  := fun x => default.
+
+(* Pentru un anumit string pune un nou offset *)
+Definition update_env (env: Env) (x: string) (n: Memory_space) : Env :=
+  fun y =>
+      (* If the variable has assigned a default memory zone, 
+         then it will be updated with the current memory offset *)
+      if (andb (string_beq x y ) (Memory_space_beq (env y) mem_default))
+      then
+        n
+      else
+        (env y).
+
+Definition new := update_env base_env "string" (offset 1).
+Definition newb := update_env new "ex_bool" (offset 2).
+Compute new "string".
+Compute newb "ex_bool".
+Definition update_mem (object : Memory_object) (env : Env) (x : string) (space : Memory_space) (v : Result) : Memory_object :=
+  fun y =>
+    if(andb (Memory_space_beq y space) (Memory_space_beq (env x) space))
+    then
+      if(andb (check_eq_over_types err_undecl (object y)) (negb (check_eq_over_types default v)) )
+      then
+          err_undecl 
+      else
+        if( andb (check_eq_over_types err_undecl (object y)) (check_eq_over_types default v))
+        then default
+        else
+          if( orb (check_eq_over_types default (object y)) (check_eq_over_types v (object y)) )
+          then v
+          else err_assign
+    else (object y).
+
+Definition what := update_mem base_memory new "string" (offset 1) (res_nat (Cnum 5)).
+Definition whatbool := update_mem what newb "ex_bool" (offset 2) (res_bool (Cbool true) ).
+
+Compute what (new "string").
+Compute whatbool (newb "ex_bool").
+
+(* Notatations used for the Big-Step semantics *)
+Reserved Notation "A =[ E '___' M ]=> N" (at level 70).
+
+Inductive aeval : AExp -> Env -> Memory_object -> Number_Value -> Prop :=
+| const : forall n env mem, acon n =[ env ___ mem ]=> n
+| var : forall v env mem, avar v =[ env ___ mem ]=>  match (env v) with
+                                                    | offset x => match mem (offset x) with
+                                                                  | res_nat x' => x'
+                                                                  | _ => error_number
+                                                                  end
+                                                    | _ => error_number
+                                                    end
+| add : forall a1 a2 i1 i2 env mem n,
+    a1 =[ env ___ mem ]=> i1 ->
+    a2 =[ env ___ mem ]=> i2 ->
+    n = (Aplus i1 i2) ->
+    a1 +a a2 =[ env ___ mem ]=> n
+| times : forall a1 a2 i1 i2 env mem n,
+    a1 =[ env ___ mem ]=> i1 ->
+    a2 =[ env ___ mem ]=> i2 ->
+    n = (Amul i1 i2) ->
+    a1 *a a2 =[ env ___ mem ]=> n
+| substract : forall a1 a2 i1 i2 env mem n,
+    a1 =[ env ___ mem ]=> i1 ->
+    a2 =[ env ___ mem ]=> i2 ->
+    n = (Asub i1 i2) ->
+    a1 -a a2 =[ env ___ mem ]=> n
+| division : forall a1 a2 i1 i2 env mem n,
+    a1 =[ env ___ mem ]=> i1 ->
+    a2 =[ env ___ mem ]=> i2 ->
+    n = (Adiv i1 i2) ->
+    a1 \a a2 =[ env ___ mem ]=> n
+| modulo : forall a1 a2 i1 i2 env mem n,
+    a1 =[ env ___ mem ]=> i1 ->
+    a2 =[ env ___ mem ]=> i2 ->
+    n = (Amod i1 i2) ->
+    a1 %a a2 =[ env ___ mem ]=> n
+where "a =[ env '___' mem ]=> n" := (aeval a env mem n).
+
+Example number_aexp : acon (Cnum 5) =[ new ___ base_memory ]=> (Cnum 5).
+Proof.
+  eapply const.
+Qed.
+Example string_aexp : avar "string" =[ new ___ what ]=> (Cnum 5).
+Proof.
+  eapply var.
+Qed.
+
+Example substract_error : (acon (Cnum 1)) -a (acon (Cnum 5)) =[ new ___ what ]=> error_number.
+Proof.
+  eapply substract.
+  - apply const.
+  - apply const.
+  - simpl. reflexivity.
+Qed.
+
+Example substract_string : avar "string" %a (acon (Cnum 5)) =[ new ___ what ]=> (Cnum 0).
+Proof.
+  eapply modulo.
+  - apply var.
+  - apply const.
+  - simpl. reflexivity.
+Qed.
+
+
+Reserved Notation "B ={ E _=_ M }=> B'" (at level 70).
+Inductive beval : BExp -> Env -> Memory_object -> Boolean_Value -> Prop :=
+| b_con : forall c env mem, bcon c ={ env _=_ mem }=> c 
+| b_var : forall v env mem, bvar v ={ env _=_ mem }=>  match (env v) with
+                                                    | offset x => match mem (offset x) with
+                                                                  | res_bool x' => x'
+                                                                  | _ => error_bool
+                                                                  end
+                                                    | _ => error_bool
+                                                    end
+| b_lessthan : forall a1 a2 i1 i2 env mem b,
+    a1 =[ env ___ mem ]=> i1 ->
+    a2 =[ env ___ mem ]=> i2 ->
+    b = (Blt i1 i2) ->
+    a1 <b a2 ={ env _=_ mem }=> b
+| b_egal : forall a1 a2 i1 i2 env mem b,
+    a1 =[ env ___ mem ]=> i1 ->
+    a2 =[ env ___ mem ]=> i2 ->
+    b = (Begal i1 i2) ->
+    a1 ==b a2 ={ env _=_ mem }=> b
+| b_not : forall a1 i1 env mem b,
+    a1 ={ env _=_  mem }=> i1 ->
+    b = (Bnot i1) ->
+    !b a1 ={ env _=_ mem }=> b
+| b_and : forall a1 a2 i1 i2 env mem b,
+    a1 ={ env _=_  mem }=> i1 ->
+    a2 ={ env _=_  mem }=> i2 ->
+    b = (Band i1 i2) ->
+    (a1 &&b a2) ={ env _=_  mem }=> b 
+| b_or : forall a1 a2 i1 i2 env mem b,
+    a1 ={ env _=_  mem }=> i1 ->
+    a2 ={ env _=_  mem }=> i2 ->
+    b = (Bor i1 i2) ->
+    (a1 ||b a2) ={ env _=_  mem }=> b 
+where "B ={ env _=_ mem }=> B'" := (beval B env mem B').
+
+Example bool_Bexp : (bcon (Cbool true)) ={ new _=_ what }=> (Cbool true).
+Proof.
+  eapply b_con.
+Qed.
+
+Example string_error_Bexp : (bvar "string" ) ={ new _=_ what }=> error_bool.
+Proof.
+  eapply b_var.
+Qed.
+
+Example complex_Bexp : ((((acon (Cnum 5)) <b (acon (Cnum 7))) &&b (bvar "ex_bool"))
+ ||b ((avar "string") ==b (acon (Cnum 5)))) ={ newb _=_ whatbool }=> (Cbool true).
+Proof.
+  eapply b_or.
+  - eapply b_and.
+    -- eapply b_lessthan.
+      --- eapply const.
+      --- eapply const.
+      --- unfold Blt. simpl. reflexivity.
+    -- eapply b_var. 
+    -- unfold Band. simpl. reflexivity.
+  - eapply b_egal.
+    -- eapply var.
+    -- eapply const.
+    -- unfold Begal. simpl. reflexivity.
+  - unfold Bor. reflexivity.
+Qed.
+
+Reserved Notation "B =$ E _$_ M $=> B'" (at level 70).
+Inductive seval : STExp -> Env -> Memory_object -> String_Value -> Prop :=
+| s_con : forall c env mem, scon c =$ env _$_ mem $=> c 
+| s_var : forall v env mem, svar v =$ env _$_ mem $=>  match (env v) with
+                                                    | offset x => match mem (offset x) with
+                                                                  | res_string x' => x'
+                                                                  | _ => error_string
+                                                                  end
+                                                    | _ => error_string
+                                                    end
+| s_mul : forall a1 i1 n env mem b,
+    a1 =$ env _$_  mem $=> i1 ->
+    b = (Smul i1 n) ->
+    (a1 *** n) =$ env _$_  mem $=> b 
+| s_concat : forall a1 a2 i1 i2 env mem b,
+    a1 =$ env _$_  mem $=> i1 ->
+    a2 =$ env _$_  mem $=> i2 ->
+    b = (Sconcat i1 i2) ->
+    (a1 +Us+ a2) =$ env _$_  mem $=> b 
+where "B =$ env _$_ mem $=> B'" := (seval B env mem B'). 
+ 
+Definition env_ := update_env newb "CAPS" (offset 3).
+Definition env2_ := update_env env_ "SECOND" (offset 4).
+Definition memstring := update_mem what env_ "CAPS" (offset 3) (res_string (Cstring "save") ).
+Definition memstring2 := update_mem memstring env2_ "SECOND" (offset 4) (res_string (Cstring "point") ).
+
+Example working : svar "CAPS" *** 3 =$ env_ _$_ memstring2 $=> (Cstring "savesavesave").
+Proof.
+    eapply s_mul.
+    - eapply s_var.
+    - unfold Smul. simpl. reflexivity.
+Qed.
+
+Compute memstring2 (env2_ "CAPS").
+
+Example concat : (svar "CAPS") +Us+ (svar "SECOND") =$ env2_ _$_ memstring2 $=> (Cstring "savepoint").
+Proof.
+    eapply s_concat.
+    - eapply s_var.
+    - eapply s_var.
+    - unfold Sconcat. simpl. reflexivity.
+Qed.
+
+Reserved Notation "B =@ T _v> P @=> B'" (at level 70).
+Inductive veval : VExp -> Env -> Memory_object -> Array_Value -> Prop :=
+| v_con : forall c env mem, vcon c =@ env _v> mem @=> c 
+| v_var : forall v env mem, vvar v =@ env _v> mem @=>  match (env v) with
+                                                    | offset x => match mem (offset x) with
+                                                                  | res_array x' => x'
+                                                                  | _ => error_array
+                                                                  end
+                                                    | _ => error_array
+                                                    end
+| v_add : forall a1 i1 n env mem b,
+    a1 =@ env _v>  mem @=> i1 ->
+    b = (Vadd i1 n) ->
+    (a1 +v n) =@ env _v>  mem @=> b 
+| v_mull : forall a1 i1 n env mem b,
+    a1 =@ env _v>  mem @=> i1 ->
+    b = (Vmull i1 n) ->
+    (a1 *v n) =@ env _v>  mem @=> b 
+| v_min : forall a1 i1 n env mem b,
+    a1 =@ env _v>  mem @=> i1 ->
+    b = (Vmin i1 n) ->
+    (a1 -v n) =@ env _v>  mem @=> b 
+| v_suply : forall a1 i1 n env mem b,
+    a1 =@ env _v>  mem @=> i1 ->
+    b = (Vsuply i1 n) ->
+    (a1 +Uv n) =@ env _v>  mem @=> b 
+| v_concat : forall a1 a2 i1 i2 env mem b, 
+    a1 =@ env _v>  mem @=> i1 ->
+    a2 =@ env _v>  mem @=> i2 ->
+    b = (Vconcat i1 i2) ->
+    (a1 +Uv+ a2) =@ env _v>  mem @=> b 
+where "B =@ env _v> mem @=> B'" := (veval B env mem B'). 
+
+Definition env3_ := update_env env2_ "vector" (offset 5).
+
+Definition memarray := update_mem memstring2 env3_ "vector" (offset 5) (res_array (Carray (Carray (Carray start_array 5) 7) 2)).
+
+Example Vecconcat : (vvar ("vector")) +Uv+ (vcon (Carray (Carray start_array 9) 7)) =@ env3_ _v> memarray @=> (Carray (Carray (Carray (Carray (Carray start_array 5) 7) 2) 9) 7).
+Proof.
+     eapply v_concat.
+     - eapply v_var.
+     - eapply v_con.
+     - unfold Vconcat. simpl. reflexivity.
+Qed.
+
+Example Vecadd : (vvar "vector") +v 3 =@ env3_ _v> memarray @=> (Carray (Carray (Carray start_array 8) 10) 5).
+Proof.
+    eapply v_add.
+    - eapply v_var.
+    - unfold Vadd. simpl. reflexivity.
+Qed. 
+
+Example Vecmin : (vvar "vector") -v 3 =@ env3_ _v> memarray @=> error_array.
+Proof.
+    eapply v_min.
+    - eapply v_var.
+    - unfold Vmin. simpl. reflexivity.
+Qed.
+
+Example Vecmul : (vvar "vector") *v 3 =@ env3_ _v> memarray @=> (Carray (Carray (Carray start_array 15) 21) 6).
+Proof.
+    eapply v_mull.
+    - eapply v_var.
+    - unfold Vmull. simpl. reflexivity.
+Qed.  
+
+Example Vecsuply : (vvar "vector") +Uv 3 =@ env3_ _v> memarray @=> (Carray (Carray (Carray (Carray start_array 5) 7) 2) 3).
+Proof.
+    eapply v_suply.
+    - eapply v_var.
+    - unfold Vsuply. simpl. reflexivity.
+Qed.  
+
+
+
+
