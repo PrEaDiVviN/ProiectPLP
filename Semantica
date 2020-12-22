@@ -1,0 +1,354 @@
+(* Librariile necesare pentru string-uri *)
+Require Import Strings.String.
+Local Open Scope string_scope.
+Local Open Scope list_scope.
+Scheme Equality for string. (* Creaza functia de egalitate pe string-uri automat *)
+
+(* Liste si notatiile pentru ele *)
+Local Open Scope list_scope.
+
+Inductive Number_Value :=
+| error_number : Number_Value
+| Cnum : nat -> Number_Value. 
+
+(* Expresii aritmetice *)
+Inductive AExp :=
+| avar: string -> AExp 
+| acon: Number_Value -> AExp
+| aplus: AExp -> AExp -> AExp
+| asub: AExp -> AExp -> AExp
+| amul: AExp -> AExp -> AExp 
+| adiv: AExp -> AExp -> AExp 
+| amod: AExp -> AExp -> AExp.
+
+(* Notatiile pentru operatiile aritmetice *)
+Notation "A +a B" := (aplus A B)(at level 50, left associativity).
+Notation "A -a B" := (asub A B)(at level 50, left associativity).
+Notation "A *a B" := (amul A B)(at level 48, left associativity).
+Notation "A \a B" := (adiv A B)(at level 48, left associativity).
+Notation "A %a B" := (amod A B)(at level 45, left associativity).
+
+Definition Aplus (x : Number_Value) (y : Number_Value) : Number_Value :=
+match x, y with
+| Cnum x', Cnum y' => Cnum (x' + y')
+| _ , _ => error_number
+end.
+
+Definition Asub (x : Number_Value) (y : Number_Value) : Number_Value :=
+match x, y with
+| Cnum x', Cnum y' => if(Nat.ltb x' y')
+                      then error_number
+                      else Cnum (x' - y')
+| _ , _ => error_number
+end.
+
+Definition Amul (x : Number_Value) (y : Number_Value) : Number_Value :=
+match x, y with
+| Cnum x', Cnum y' => Cnum (x' * y')
+| _ , _ => error_number
+end.
+
+Definition Adiv (x : Number_Value) (y : Number_Value) : Number_Value :=
+match x, y with
+| Cnum x', Cnum y' => match x', y' with
+                      | x'', 0 => error_number
+                      | x'', y'' => Cnum(Nat.div x'' y'')
+                      end
+| _ , _ => error_number
+end.
+
+Definition Amod (x : Number_Value) (y : Number_Value) : Number_Value :=
+match x, y with
+| Cnum x', Cnum y' => if (Nat.leb y' 0) 
+                      then error_number
+                      else  Cnum (Nat.modulo x' y'  )
+| _ , _ => error_number
+end.
+
+Compute (Amod (Cnum 1) (Cnum 2)).
+
+Inductive Result :=
+| err_undecl : Result
+| err_assign : Result
+| default : Result
+| res_nat : Number_Value -> Result.
+(* The functions' names are mapped to the code inside the function *)
+
+Definition check_eq_over_types (t1 : Result) (t2 : Result) : bool :=
+  match t1 with
+  | err_assign => match t2 with 
+                    | err_assign => true
+                    | _ => false
+                     end
+  | err_undecl => match t2 with
+                    | err_undecl => true
+                    | _ => false
+                     end
+  | default => match t2 with
+                 | default => true
+                 | _ => false
+               end
+  | res_nat _x => match t2 with
+                     | res_nat _y => true
+                     | _ => false
+                  end
+end.
+
+Inductive Memory_space :=
+| mem_default : Memory_space
+| offset : nat -> Memory_space. (* offset which indicates the current number of memory zones *)
+
+Scheme Equality for Memory_space.
+
+(* Environment *)
+Definition Env := string -> Memory_space.
+
+Definition base_env : Env := fun x => mem_default.
+
+Compute base_env "string".
+
+(* Memory Layer *)
+Definition Memory_object := Memory_space -> Result.
+
+(* Pentru un anumit string pune un nou offset *)
+Definition update_env (env: Env) (x: string) (n: Memory_space) : Env :=
+  fun y =>
+      (* If the variable has assigned a default memory zone, 
+         then it will be updated with the current memory offset *)
+      if (andb (string_beq x y ) (Memory_space_beq (env y) mem_default))
+      then
+        n
+      else
+        (env y).
+
+Definition new := update_env base_env "string" (offset 1).
+Compute new "string".
+Definition update_mem (object : Memory_object) (env : Env) (x : string) (space : Memory_space) (v : Result) : Memory_object :=
+  fun y =>
+    if(andb (Memory_space_beq y space) (Memory_space_beq (env x) space))
+    then
+      if(andb (check_eq_over_types err_undecl (object y)) (negb (check_eq_over_types default v)) )
+      then
+          err_undecl
+      else
+        if( andb (check_eq_over_types err_undecl (object y)) (check_eq_over_types default v))
+        then default
+        else
+          if( orb (check_eq_over_types default (object y)) (check_eq_over_types v (object y)) )
+          then v
+          else err_assign
+    else (object y).
+
+Inductive aeval : AExp -> Env -> Memoryobject -> Number_Value -> Prop :=
+| const : forall n sigma, anum n =[ sigma ]=> n
+| var : forall v sigma, avar v =[ sigma ]=>  match (sigma v) with
+                                              | res_nat x => x
+                                              | _ => error_nat
+                                              end
+| add : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = (plus_ErrorNat i1 i2) ->
+    a1 +' a2 =[sigma]=> n
+| times : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = (mul_ErrorNat i1 i2) ->
+    a1 *' a2 =[sigma]=> n
+| substract : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = (sub_ErrorNat i1 i2) ->
+    a1 -' a2 =[sigma]=> n
+| division : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = (div_ErrorNat  i1 i2) ->
+    a1 /' a2 =[sigma]=> n
+| modulo : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = (mod_ErrorNat i1 i2) ->
+    a1 %' a2 =[sigma]=> n
+where "a =[ sigma ]=> n" := (aeval a sigma n).
+
+Inductive Boolean_Value :=
+| error_bool : Boolean_Value
+| Cbool : bool -> Boolean_Value.
+
+(* Expresii boolene *)
+Inductive BExp :=
+| bvar : string -> BExp
+| bcon: Boolean_Value -> BExp
+| begal: AExp -> AExp -> BExp
+| blt : AExp -> AExp -> BExp
+| bnot : BExp -> BExp
+| band : BExp -> BExp -> BExp
+| bor : BExp -> BExp -> BExp.
+
+(* Notations used for boolean operations *)
+Notation "A <b B" := (blt A B) (at level 50).
+Notation "A ==b B" := (begal A B) (at level 50).
+Notation "!b A" := (bnot A)(at level 51, left associativity).
+Notation "A &&b B" := (band A B)(at level 52, left associativity).
+Notation "A ||b B" := (bor A B)(at level 53, left associativity).
+
+Definition Begal (x : Number_Value) (y : Number_Value) : Boolean_Value :=
+match x, y with
+| Cnum x', Cnum y' => if ( Nat.eqb x' y')
+                      then (Cbool true)
+                      else (Cbool false )
+| _ , _ => error_bool
+end.
+
+Definition Blt (x : Number_Value) (y : Number_Value) : Boolean_Value :=
+match x, y with
+| Cnum x', Cnum y' => if ( Nat.ltb x' y')
+                      then (Cbool true)
+                      else (Cbool false )
+| _ , _ => error_bool
+end.
+
+
+Definition Bnot (x : Boolean_Value)  : Boolean_Value :=
+match x with
+| Cbool true => Cbool false
+| Cbool false => Cbool true
+| _ => error_bool
+end.
+
+Definition Band (x : Boolean_Value) (y : Boolean_Value) : Boolean_Value :=
+match x, y with
+| (Cbool true), (Cbool true) => Cbool true 
+| (Cbool true), (Cbool false) => Cbool false
+| (Cbool false), (Cbool true) => Cbool false
+| (Cbool false), (Cbool false) => Cbool false 
+| _ , _ => error_bool
+end.
+
+Definition Bor (x : Boolean_Value) (y : Boolean_Value) : Boolean_Value :=
+match x, y with
+| (Cbool true), (Cbool true) => Cbool true 
+| (Cbool true), (Cbool false) => Cbool true
+| (Cbool false), (Cbool true) => Cbool true
+| (Cbool false), (Cbool false) => Cbool false 
+| _ , _ => error_bool
+end.
+
+Inductive String_Value :=
+| error_string : String_Value
+| Cstring : string -> String_Value.
+
+(* Expresii string-uri *)
+Inductive STExp :=
+| svar : string -> STExp
+| scon : String_Value -> STExp
+| sconcat : STExp ->STExp -> STExp
+| smul : STExp -> nat -> STExp.
+
+Notation "A +Us+ B" := (sconcat A B)(at level 70).
+Notation "A *** B" := (smul A B)(at level 70).
+
+Definition Sconcat (S1 : String_Value) (S2 : String_Value) : String_Value :=
+match S1, S2 with
+| Cstring S1', Cstring S2' => Cstring (S1' ++ S2')
+| _, _ => error_string
+end.
+
+Fixpoint Sm (s : String_Value) (x : nat) : String_Value :=
+match x with
+| O => (Cstring "")
+| S x' => Sconcat s ( Sm s x')
+end.
+
+Definition Smul (S1 : String_Value) (x : nat) : String_Value :=
+match S1, x with
+| Cstring S1', x' => if (Nat.leb x' 1)
+                     then error_string
+                     else Sm (Cstring S1') x'
+| _, _ => error_string
+end.
+
+Compute Smul (Cstring "alin_") (5).
+
+
+Inductive Array_Value :=
+| error_array : Array_Value
+| start_array : Array_Value
+| Carray : Array_Value -> nat -> Array_Value.
+
+
+(* Expresii vectori *)
+Inductive VExp :=
+| vcon : string -> VExp
+| vvar : Array_Value -> VExp
+| vadd : VExp -> nat -> VExp
+| vmull : VExp -> nat -> VExp
+| vmin : VExp -> nat -> VExp
+| vsuply : VExp -> nat -> VExp
+| vconcat : VExp -> VExp -> VExp.
+
+
+Notation "A +v B" := (vadd A B)(at level 70).
+Notation "A *v B" := (vmull A B)(at level 70).
+Notation "A -v B" := (vmin A B)(at level 70).
+Notation "A +Uv B" := (vsuply A B)(at level 70).
+Notation "A +Uv+ B" := (vconcat A B)(at level 70).
+
+Definition Vsupply (V1 : Array_Value) (x : nat) : Array_Value :=
+match V1 with
+| Carray V1' a => (Carray (Carray V1' a) x)
+| start_array => (Carray start_array x)
+| _ => error_array
+end.
+
+(*Definition adit := Vadd (Carray start_array 5) 7. Print adit.*)
+
+Fixpoint Vmull (V1 : Array_Value) (x : nat) : Array_Value :=
+match V1 with
+| Carray start_array z => (Carray start_array (x*z))
+| Carray V1' a => (Carray (Vmull V1' x) (a*x))
+| _ => error_array
+end. 
+
+Compute Vmull (Carray (Carray (Carray (Carray start_array 3) 2) 10) 7) 5.
+
+Fixpoint Vadd (V1 : Array_Value) (x : nat) : Array_Value :=
+match V1 with
+| Carray start_array z => (Carray start_array (x+z))
+| Carray V1' a => (Carray (Vadd V1' x) (a+x))
+| _ => error_array
+end. 
+
+Fixpoint exists_lower (V1 : Array_Value) (x : nat) : bool :=
+match V1 with
+| Carray start_array z => if(Nat.ltb z x)
+                          then true
+                          else
+                               false
+| Carray V1' a => if(Nat.ltb a x)
+                  then true
+                  else (exists_lower V1' x)
+| _ => false
+end.
+Fixpoint Vmin (V1 : Array_Value) (x : nat) : Array_Value :=
+if( exists_lower V1 x )
+then error_array
+else 
+    match V1 with
+    | Carray start_array z =>  (Carray start_array (z-x))
+    | Carray V1' a => (Carray (Vmin V1' x) (a-x))
+    | _ => error_array
+end. 
+
+Compute Vmin (Carray (Carray (Carray (Carray start_array 4) 5) 10) 7) 5.
+
+Fixpoint Vconcat (V1 : Array_Value) (V2 : Array_Value) : Array_Value := 
+match V1,V2 with
+| error_array, _ => error_array
+| _ , error_array => error_array 
+| V1', Carray v a => Vsupply (Vconcat V1' v) a (* Vconcat (Vsupply V1' a) v === FOR REVERSE CONCAT*)
+| V1' , start_array => V1'
+end. 
+
+Compute Vconcat (Carray (Carray (Carray (Carray start_array 4) 5) 10) 7) (Carray (Carray start_array 5) 7). 
