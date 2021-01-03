@@ -11,6 +11,8 @@ Inductive Number_Value :=
 | error_number : Number_Value
 | Cnum : nat -> Number_Value. 
 
+Coercion Cnum: nat >-> Number_Value.
+
 (* Expresii aritmetice *)
 Inductive AExp :=
 | avar: string -> AExp 
@@ -20,6 +22,9 @@ Inductive AExp :=
 | amul: AExp -> AExp -> AExp 
 | adiv: AExp -> AExp -> AExp 
 | amod: AExp -> AExp -> AExp.
+
+Coercion avar: string >-> AExp.
+Coercion acon: Number_Value >-> AExp. 
 
 (* Notatiile pentru operatiile aritmetice *)
 Notation "A +a B" := (aplus A B)(at level 50, left associativity).
@@ -71,6 +76,8 @@ Inductive Boolean_Value :=
 | error_bool : Boolean_Value
 | Cbool : bool -> Boolean_Value.
 
+Coercion Cbool : bool >-> Boolean_Value.
+
 (* Expresii boolene *)
 Inductive BExp :=
 | bvar : string -> BExp
@@ -80,6 +87,9 @@ Inductive BExp :=
 | bnot : BExp -> BExp
 | band : BExp -> BExp -> BExp
 | bor : BExp -> BExp -> BExp.
+
+Coercion bvar : string >-> BExp.
+Coercion bcon : Boolean_Value >-> BExp.
 
 (* Notations used for boolean operations *)
 Notation "A <b B" := (blt A B) (at level 50).
@@ -134,12 +144,17 @@ Inductive String_Value :=
 | error_string : String_Value
 | Cstring : string -> String_Value.
 
+Coercion Cstring : string >-> String_Value.
+
 (* Expresii string-uri *)
 Inductive STExp :=
 | svar : string -> STExp
 | scon : String_Value -> STExp
 | sconcat : STExp ->STExp -> STExp
 | smul : STExp -> nat -> STExp.
+
+Coercion svar : string >-> STExp.
+(*Coercion scon : String_Value >-> STExp.*)
 
 Notation "A +Us+ B" := (sconcat A B)(at level 70).
 Notation "A *** B" := (smul A B)(at level 70).
@@ -171,7 +186,6 @@ Inductive Array_Value :=
 | start_array : Array_Value
 | Carray : Array_Value -> nat -> Array_Value.
 
-
 (* Expresii vectori *)
 Inductive VExp :=
 | vvar : string -> VExp
@@ -181,6 +195,9 @@ Inductive VExp :=
 | vmin : VExp -> nat -> VExp
 | vsuply : VExp -> nat -> VExp
 | vconcat : VExp -> VExp -> VExp.
+
+Coercion vvar : string >-> VExp.
+Coercion vcon : Array_Value >-> VExp.
 
 
 Notation "A +v B" := (vadd A B)(at level 70).
@@ -247,6 +264,85 @@ end.
 
 Compute Vconcat (Carray (Carray (Carray (Carray start_array 4) 5) 10) 7) (Carray (Carray start_array 5) 7). 
 
+(* Sectiunea pentru statement-uri *)
+Inductive Stmt :=
+| number_decl: string -> AExp -> Stmt  
+| bool_decl: string -> BExp -> Stmt  
+| string_decl: string -> STExp -> Stmt
+| array_decl: string -> VExp -> Stmt
+| number_assign : string -> AExp -> Stmt
+| bool_assign : string -> BExp -> Stmt
+| string_assign : string -> STExp -> Stmt
+| array_assign : string -> STExp -> Stmt
+| sequence : Stmt -> Stmt -> Stmt
+| while : BExp -> Stmt -> Stmt
+| do_while: Stmt -> BExp -> Stmt
+| for_ : Stmt -> BExp -> Stmt -> Stmt -> Stmt
+| break : Stmt
+| continue : Stmt
+| ifthenelse : BExp -> Stmt -> Stmt -> Stmt
+| ifthen : BExp -> Stmt -> Stmt
+| function_decl : string -> list Stmt -> Stmt -> Stmt
+| function_call : string -> Stmt
+| case : AExp -> Stmt -> Stmt
+| switch_case : AExp -> Stmt -> Stmt.
+
+
+(* Notations for Statements *)
+Notation "X :n= A" := (number_assign X A)(at level 90).
+Notation "X :b= A" := (bool_assign X A)(at level 90).
+Notation "X :s= A" := (string_decl X A)(at level 90).
+Notation "X :a= A" := (array_decl X A)(at level 90).
+Notation "'INat' X ::= A" := (number_decl X A)(at level 90).
+Notation "'IBool' X ::= A" := (bool_decl X A)(at level 90).
+Notation "'IArr' X ::= A" := (array_decl X A)(at level 90).
+Notation "'IStr' X ::= A" := (string_decl X A)(at level 90).
+Notation "S1 ;; S2" := (sequence S1 S2) (at level 93, right associativity).
+Notation "'FOR' A '~~' B '~~' C '{' S '}'" := (for_ A B C S) (at level 90).
+Notation "'IF_' B 'THEN_' S" := (ifthen B S) (at level 90).
+Notation "'IF' B 'THEN' S1 'ELSE' S2" :=(ifthenelse B S1 S2)(at level 50).
+Notation "'DO_WHILE' '<<<<' S '>>>>' B" :=(do_while S B)(at level 89).
+Notation "'WHILE' B '{' S '}'" := (while B S)(at level 89).
+
+Notation "'CALL' ? S ?" := (function_call S)(at level 90).
+Notation "'function' N '&' L '&' '{' S '}'" := (function_decl N L S) (at level 91).
+
+
+Module ListNotations.
+Notation "[ ]" := nil. 
+Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
+
+Notation "'CASE' '@' N '@'  '#' S '#'" := (case N S) (at level 90).
+Notation "'SWITCH' '(' A ')' '{' B '}'" := (switch_case A B)(at level 90).
+
+
+Definition Program :=
+  "b" :b= bcon (Cbool true) ;;
+  "a" :n= 15 -a "b" ;;
+  "string" :s= "text" +Us+ " ajutator" ;;
+  "array" :a= Carray (Carray (Carray start_array 3) 9) 5 ;;
+  INat "a"  ::= 13 ;;
+  IBool "b" ::= ("a" ==b 0) ;;
+  IArr "array" ::= "array" +Uv+ "array"  ;;
+  IStr "ceva" ::= "mai" ;;
+  function "do_something"  & [ INat "c" ::= 0 ] &  { "b" :b= bcon (Cbool false) } ;;
+  function "main" & [] &
+  {
+    IF ( "c" ==b 15 )
+    THEN ( "c" :n= "c" +a 1 )
+    ELSE
+        ( "b" :b= bcon (Cbool false ) ) ;;
+    SWITCH ( "c" ) 
+        {  (CASE @ 5 @ # INat "a" ::= 13 #) ;; 
+            (CASE @ 10 @ # INat "a" ::= 15 #)  
+        } ;; 
+    DO_WHILE <<<< (break ;; continue) >>>> ("a" ==b 3) ;;
+    CALL ? "do_something" ? ;;
+    IF_ ( "a" <b "d" )
+    THEN_ ( "array" :a= Carray(Carray start_array 3) 5) 
+  }
+.   
+
 Inductive Result :=
 | err_undecl : Result
 | err_assign : Result
@@ -254,7 +350,8 @@ Inductive Result :=
 | res_nat : Number_Value -> Result
 | res_bool : Boolean_Value -> Result
 | res_string : String_Value -> Result
-| res_array : Array_Value -> Result.
+| res_array : Array_Value -> Result
+| code : Stmt -> Result.
 (* The functions' names are mapped to the code inside the function *)
 
 Definition check_eq_over_types (t1 : Result) (t2 : Result) : bool :=
@@ -285,6 +382,10 @@ Definition check_eq_over_types (t1 : Result) (t2 : Result) : bool :=
                   end  
   | res_array _x => match t2 with
                      | res_array _y => true
+                     | _ => false
+                  end 
+  | code _x => match t2 with
+                     | code _y => true
                      | _ => false
                   end 
 end.
@@ -343,6 +444,46 @@ Definition whatbool := update_mem what newb "ex_bool" (offset 2) (res_bool (Cboo
 
 Compute what (new "string").
 Compute whatbool (newb "ex_bool").
+
+Inductive position :=|pos : nat -> position. 
+Definition start : position := pos 0. (* Last memory zone *)
+
+Definition upper (x : position) : position :=  
+match x with
+| pos x' => pos (x' + 1)
+end.
+
+Definition lower (x : position) : position :=  
+match x with
+| pos x' => pos (x' - 1)
+end.
+
+Definition Stack := list Env.
+
+(* Configuration *)
+Inductive Config := | cons_config : position -> Env -> Memory_object -> Config.
+  (* nat: last memory zone
+     Env: environment
+     MemLayer: memory layer
+     Stack: stack 
+  *)
+
+
+
+Definition update_configuration ( c : Config ) ( env : Env ) (obj : Memory_object) : Config :=
+match c with 
+| (cons_config (pos p) e o) => (cons_config (upper(pos p)) env obj) 
+end. 
+(*
+Definition update_configuration ( p : position ) ( env : Env) ( space : Memory_Space ) :=.
+(* Pay attention!!! In order to be able to monitor the state of the entire program, you need to
+   implement a function "update_conf", which updates the 
+   entire configuration (environment, memory layout and stack).  
+   config : nat -> Env -> MemLayer -> Stack -> Config (the first value represents the last memory zone, 
+   and you will need to find a way to increment it each time a new variable/function is declared)
+*)
+*)
+
 
 (* Notatations used for the Big-Step semantics *)
 Reserved Notation "A =[ E '___' M ]=> N" (at level 70).
@@ -587,8 +728,32 @@ Proof.
     eapply v_suply.
     - eapply v_var.
     - unfold Vsuply. simpl. reflexivity.
-Qed.  
+Qed.
 
+Reserved Notation "B -{ S }-> B'" (at level 70).
 
+(* Semantica bigstep pt stmt-uri *)
+Inductive eval : Stmt -> Config -> Config -> Prop :=
+| e_nat_decl: forall a n x p o e obj env config_1 config_2,
+   config_1 = (cons_config (pos p) e o) ->
+   a =[ e ___ o ]=> n ->
+   env = (update_env e x (offset p)) ->
+   obj = (update_mem o env x (offset p) (res_nat n)) ->
+   config_2 = (update_configuration config_1 env obj) ->
+   (x :n= a) -{ config_1 }-> config_2
+where "s -{ config_1 }-> config_2" := (eval s config_1 config_2).
 
+Definition progr := "a" :n= 15. 
 
+Definition env : Env := fun x => mem_default.
+Definition obj : Memory_object  := fun x => default.
+Definition config1 := (cons_config (pos 0) env obj).
+
+Definition beg := (pos 0).
+Definition sfar := (pos 1).
+
+Example declaration : exists env1 obj1, progr -{ (cons_config beg env obj) }-> (cons_config sfar env1 obj1).
+Proof.
+  eexists.
+  unfold progr.
+  eapply e_nat_decl.
