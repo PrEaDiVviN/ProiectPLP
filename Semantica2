@@ -1,0 +1,1334 @@
+(* Librariile necesare pentru string-uri *)
+Require Import Strings.String.
+Local Open Scope string_scope.
+Local Open Scope list_scope.
+Scheme Equality for string. (* Creaza functia de egalitate pe string-uri automat *)
+
+(* Liste si notatiile pentru ele *)
+Local Open Scope list_scope.
+
+Inductive Number_Value :=
+| error_number : Number_Value
+| Cnum : nat -> Number_Value. 
+
+Coercion Cnum: nat >-> Number_Value.
+
+(* Expresii aritmetice *)
+Inductive AExp :=
+| avar: string -> AExp 
+| acon: Number_Value -> AExp
+| aplus: AExp -> AExp -> AExp
+| asub: AExp -> AExp -> AExp
+| amul: AExp -> AExp -> AExp 
+| adiv: AExp -> AExp -> AExp 
+| amod: AExp -> AExp -> AExp.
+
+Coercion avar: string >-> AExp.
+Coercion acon: Number_Value >-> AExp. 
+
+(* Notatiile pentru operatiile aritmetice *)
+Notation "A +a B" := (aplus A B)(at level 50, left associativity).
+Notation "A -a B" := (asub A B)(at level 50, left associativity).
+Notation "A *a B" := (amul A B)(at level 48, left associativity).
+Notation "A \a B" := (adiv A B)(at level 48, left associativity).
+Notation "A %a B" := (amod A B)(at level 45, left associativity).
+
+
+Inductive Boolean_Value :=
+| error_bool : Boolean_Value
+| Cbool : bool -> Boolean_Value.
+
+Coercion Cbool : bool >-> Boolean_Value.
+
+(* Expresii boolene *)
+Inductive BExp :=
+| bvar : string -> BExp
+| bcon: Boolean_Value -> BExp
+| begal: AExp -> AExp -> BExp
+| blt : AExp -> AExp -> BExp
+| bnot : BExp -> BExp
+| band : BExp -> BExp -> BExp
+| bor : BExp -> BExp -> BExp.
+
+Coercion bvar : string >-> BExp.
+Coercion bcon : Boolean_Value >-> BExp.
+
+(* Notations used for boolean operations *)
+Notation "A <b B" := (blt A B) (at level 50).
+Notation "A ==b B" := (begal A B) (at level 50).
+Notation "!b A" := (bnot A)(at level 51, left associativity).
+Notation "A &&b B" := (band A B)(at level 52, left associativity).
+Notation "A ||b B" := (bor A B)(at level 53, left associativity).
+
+Inductive String_Value :=
+| error_string : String_Value
+| Cstring : string -> String_Value.
+
+Coercion Cstring : string >-> String_Value.
+
+(* Expresii string-uri *)
+Inductive STExp :=
+| svar : string -> STExp
+| scon : String_Value -> STExp
+| sconcat : STExp ->STExp -> STExp
+| smul : STExp -> nat -> STExp.
+
+Coercion svar : string >-> STExp.
+(*Coercion scon : String_Value >-> STExp.*)
+
+Notation "A +Us+ B" := (sconcat A B)(at level 70).
+Notation "A *** B" := (smul A B)(at level 70).
+
+
+
+Inductive Array_Value :=
+| error_array : Array_Value
+| start_array : Array_Value
+| Carray : Array_Value -> nat -> Array_Value.
+
+(* Expresii vectori *)
+Inductive VExp :=
+| vvar : string -> VExp
+| vcon : Array_Value -> VExp
+| vadd : VExp -> nat -> VExp
+| vmull : VExp -> nat -> VExp
+| vmin : VExp -> nat -> VExp
+| vsuply : VExp -> nat -> VExp
+| vconcat : VExp -> VExp -> VExp.
+
+Coercion vvar : string >-> VExp.
+Coercion vcon : Array_Value >-> VExp.
+
+
+Notation "A +v B" := (vadd A B)(at level 70).
+Notation "A *v B" := (vmull A B)(at level 70).
+Notation "A -v B" := (vmin A B)(at level 70).
+Notation "A +Uv B" := (vsuply A B)(at level 70).
+Notation "A +Uv+ B" := (vconcat A B)(at level 70).
+
+Inductive Result :=
+| undeclared : Result
+| error
+| res_nat : Number_Value -> Result
+| res_bool : Boolean_Value -> Result
+| res_string : String_Value -> Result
+| res_array : Array_Value -> Result.
+
+Scheme Equality for Result.
+
+Definition Aplus (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => (res_nat (Cnum (x' + y')))
+| _ , _ => res_nat error_number
+end.
+
+Definition Asub (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => if(Nat.ltb x' y')
+                      then (res_nat error_number)
+                      else (res_nat (Cnum (x' - y')))
+| _ , _ => res_nat error_number
+end.
+
+Definition Amul (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => (res_nat (Cnum (x' * y')))
+| _ , _ => res_nat error_number
+end.
+
+Definition Adiv (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => match x', y' with
+                                            | x'', 0 => res_nat error_number
+                                            | x'', y'' => (res_nat (Cnum(Nat.div x'' y'')))
+                                            end
+| _ , _ => res_nat error_number
+end.
+
+Definition Amod (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => if (Nat.leb y' 0) 
+                                            then res_nat error_number
+                                            else (res_nat (Cnum (Nat.modulo x' y')))
+| _ , _ => res_nat error_number
+end.
+Compute (Amod (res_nat (Cnum 1)) (res_nat (Cnum 2))).
+
+Definition Begal (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat (Cnum x')),(res_nat (Cnum y')) => if ( Nat.eqb x' y')
+                                             then res_bool (Cbool true)
+                                             else res_bool (Cbool false )
+| _ , _ => res_bool error_bool
+end.
+
+Definition Blt (x : Result) (y : Result) : Result :=
+match x, y with
+|(res_nat (Cnum x')),(res_nat (Cnum y')) => if ( Nat.ltb x' y')
+                                            then res_bool (Cbool true)
+                                            else res_bool (Cbool false )
+| _ , _ => res_bool error_bool
+end.
+
+
+Definition Bnot (x : Result)  : Result :=
+match x with
+| res_bool (Cbool true) => res_bool (Cbool false)
+| res_bool (Cbool false) => res_bool (Cbool true)
+| _ => res_bool error_bool
+end.
+
+Definition Band (x : Result) (y : Result) : Result :=
+match x, y with
+| res_bool (Cbool true),res_bool (Cbool true) => res_bool (Cbool true)
+| res_bool (Cbool true),res_bool (Cbool false) => res_bool (Cbool false)
+| res_bool (Cbool false),res_bool (Cbool true) => res_bool (Cbool false)
+| res_bool (Cbool false),res_bool (Cbool false) => res_bool (Cbool false)
+| _ , _ => res_bool error_bool
+end.
+
+Definition Bor (x : Result) (y : Result) : Result :=
+match x, y with
+| res_bool (Cbool true),res_bool (Cbool true) => res_bool (Cbool true)
+| res_bool (Cbool true),res_bool (Cbool false) => res_bool (Cbool true)
+| res_bool (Cbool false),res_bool (Cbool true) => res_bool (Cbool true )
+| res_bool (Cbool false),res_bool (Cbool false) => res_bool (Cbool false)
+| _ , _ => res_bool error_bool
+end.
+
+Definition Sconcat (S1 : Result) (S2 : Result) : Result :=
+match S1, S2 with
+| res_string (Cstring S1'),res_string (Cstring S2') => res_string (Cstring (S1' ++ S2'))
+| _, _ => res_string error_string
+end.
+
+Fixpoint Sm (s :  Result) (x : nat) :  Result :=
+match x with
+| O => res_string (Cstring "")
+| S x' => Sconcat s ( Sm s x')
+end.
+
+Definition Smul (S1 :  Result) (x : nat) :  Result :=
+match S1, x with
+| res_string (Cstring S1'), x' => if (Nat.leb x' 1)
+                                  then res_string error_string
+                                  else Sm (res_string (Cstring S1')) x'
+| _, _ => res_string error_string
+end.
+
+Compute Smul (res_string(Cstring "alin_")) (5).
+
+Definition Vsuplyy (V1 : Array_Value) (x : nat) : Array_Value :=
+match V1 with
+| (Carray V1' a)=> (Carray (Carray V1' a) x)
+| start_array => (Carray start_array x)
+| _ => error_array
+end.
+
+Definition Vsuply (V1 : Result) (x : nat) : Result :=
+match V1 with
+| res_array (Carray V1' a)=> res_array (Carray (Carray V1' a) x)
+| res_array start_array => res_array (Carray start_array x)
+| _ => res_array error_array
+end.
+ 
+Fixpoint Vm (V1 : Array_Value) (x : nat) : Array_Value :=
+match V1 with
+| Carray start_array z => (Carray start_array (x*z))
+| Carray V1' a => (Carray (Vm V1' x) (a*x))
+| _ => error_array
+end. 
+
+Definition Vmull (V1 :  Result) (x : nat) :  Result :=
+match V1, x with
+| res_array V', x => res_array (Vm V' x)  
+| _, _ => res_array error_array
+end.
+
+Compute Vmull (res_array (Carray (Carray (Carray (Carray start_array 3) 2) 10) 7)) 5.
+
+Fixpoint Va (V1 : Array_Value) (x : nat) : Array_Value :=
+match V1 with
+| Carray start_array z => (Carray start_array (x+z))
+| Carray V1' a => (Carray (Va V1' x) (a+x))
+| _ => error_array
+end. 
+
+Definition Vadd (V1 :  Result) (x : nat) :  Result :=
+match V1, x with
+| res_array V', x => res_array (Va V' x)  
+| _, _ => res_array error_array
+end.
+
+Fixpoint exists_lower (V1 : Array_Value) (x : nat) : bool :=
+match V1 with
+| Carray start_array z => if(Nat.ltb z x)
+                          then true
+                          else
+                               false
+| Carray V1' a => if(Nat.ltb a x)
+                  then true
+                  else (exists_lower V1' x)
+| _ => false
+end.
+Fixpoint Vi (V1 : Array_Value) (x : nat) : Array_Value :=
+if( exists_lower V1 x )
+then error_array
+else 
+    match V1 with
+    | Carray start_array z =>  (Carray start_array (z-x))
+    | Carray V1' a => (Carray (Vi V1' x) (a-x))
+    | _ => error_array
+end. 
+
+Definition Vmin (V1 :  Result) (x : nat) :  Result :=
+match V1, x with
+| res_array V', x => res_array (Vi V' x)  
+| _, _ => res_array error_array
+end.
+
+
+Compute Vmin (res_array (Carray (Carray (Carray (Carray start_array 4) 5) 10) 7)) 5.
+
+Fixpoint Vconcatt (V1 : Array_Value) (V2 :  Array_Value) : Array_Value := 
+match V1,V2 with
+| error_array, _ => error_array
+| _ , error_array => error_array 
+| V1', Carray v a => Vsuplyy (Vconcatt V1' v) a (* Vconcat (Vsupply V1' a) v === FOR REVERSE CONCAT*)
+| V1' , start_array => V1'
+end. 
+
+Definition Vconcat (V1 :  Result) (V2 :  Result) :  Result :=
+match V1, V2 with
+| res_array V', res_array V'' => res_array ( Vconcatt (V') (V'') )  
+| _, _ => res_array error_array
+end.
+
+
+Compute Vconcat (res_array (Carray (Carray (Carray (Carray start_array 4) 5) 10) 7)) (res_array (Carray (Carray start_array 5) 7)). 
+
+
+(* Sectiunea pentru statement-uri *)
+Inductive Stmt :=
+| number_decl: string -> AExp -> Stmt  
+| bool_decl: string -> BExp -> Stmt  
+| string_decl: string -> STExp -> Stmt
+| array_decl: string -> VExp -> Stmt
+| number_assign : string -> AExp -> Stmt
+| bool_assign : string -> BExp -> Stmt
+| string_assign : string -> STExp -> Stmt
+| array_assign : string -> STExp -> Stmt
+| sequence : Stmt -> Stmt -> Stmt
+| while : BExp -> Stmt -> Stmt
+| do_while: Stmt -> BExp -> Stmt
+| for_ : Stmt -> BExp -> Stmt -> Stmt -> Stmt
+| break : Stmt
+| void : Stmt
+| exit : Stmt -> Stmt
+| ifthenelse : BExp -> Stmt -> Stmt -> Stmt
+| ifthen : BExp -> Stmt -> Stmt
+| function_decl : string -> Stmt -> Stmt -> Stmt
+| function_call : string -> Stmt
+| case : AExp -> Stmt -> Stmt
+| switch_case : AExp -> Stmt -> Stmt.
+
+
+(* Notations for Statements *)
+Notation "X :n= A" := (number_assign X A)(at level 90).
+Notation "X :b= A" := (bool_assign X A)(at level 90).
+Notation "X :s= A" := (string_decl X A)(at level 90).
+Notation "X :a= A" := (array_decl X A)(at level 90).
+Notation "'INat' X ::= A" := (number_decl X A)(at level 90).
+Notation "'IBool' X ::= A" := (bool_decl X A)(at level 90).
+Notation "'IArr' X ::= A" := (array_decl X A)(at level 90).
+Notation "'IStr' X ::= A" := (string_decl X A)(at level 90).
+Notation "S1 ;; S2" := (sequence S1 S2) (at level 93, right associativity).
+Notation "'FOR' A '~~' B '~~' C '{' S '}'" := (for_ A B C S) (at level 90).
+Notation "'IF_' B 'THEN_' S" := (ifthen B S) (at level 90).
+Notation "'IF' B 'THEN' S1 'ELSE' S2" :=(ifthenelse B S1 S2)(at level 50).
+Notation "'DO_WHILE' '<<<<' S '>>>>' B" :=(do_while S B)(at level 89).
+Notation "'WHILE' B  S " := (while B S)(at level 89).
+
+Notation "'CALL' ? S ?" := (function_call S)(at level 90).
+Notation "'function' N '&' L '&' '{' S '}'" := (function_decl N L S) (at level 91).
+
+
+Module ListNotations.
+Notation "[ ]" := nil. 
+Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
+
+Notation "'CASE' '@' N '@'  '#' S '#'" := (case N S) (at level 90).
+Notation "'SWITCH' '(' A ')' '{' B '}'" := (switch_case A B)(at level 90).
+
+
+
+Definition Program :=
+  "b" :b= bcon (Cbool true) ;;
+  "a" :n= 15 -a "b" ;;
+  "string" :s= "text" +Us+ " ajutator" ;;
+  "array" :a= Carray (Carray (Carray start_array 3) 9) 5 ;;
+  INat "a"  ::= 13 ;;
+  IBool "b" ::= ("a" ==b 0) ;;
+  IArr "array" ::= "array" +Uv+ "array"  ;;
+  IStr "ceva" ::= "mai" ;;
+  function "do_something"  &  INat "c" ::= 0  &  { "b" :b= bcon (Cbool false) } ;;
+  function "main" & void &
+  {
+    IF ( "c" ==b 15 )
+    THEN ( "c" :n= "c" +a 1 )
+    ELSE
+        ( "b" :b= bcon (Cbool false ) ) ;;
+    SWITCH ( "c" ) 
+        {  (CASE @ 5 @ # INat "a" ::= 13 #) ;; 
+            (CASE @ 10 @ # INat "a" ::= 15 #)  
+        } ;; 
+    DO_WHILE <<<< (break) >>>> ("a" ==b 3) ;;
+    CALL ? "do_something" ? ;;
+    IF_ ( "a" <b "d" )
+    THEN_ ( "array" :a= Carray(Carray start_array 3) 5) 
+  }
+.   
+
+
+Definition Env := string -> Result.
+
+Definition env0 : Env := fun x => undeclared. (* env initial *)
+
+Definition update (env : Env) (x : string) (v : Result) : Env :=
+fun y =>
+  if (string_eq_dec y x) 
+  then v
+  else (env y).
+
+
+Reserved Notation "A =[ S ]=> N" (at level 60).
+
+Inductive aeval : AExp -> Env -> Result -> Prop :=
+| const : forall n sigma, acon n =[ sigma ]=> (res_nat n)  
+| var : forall v sigma, avar v =[ sigma ]=> (sigma v)  
+| add : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = Aplus i1 i2 ->
+    a1 +a a2 =[sigma]=> n
+| times : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = Amul i1 i2 ->
+    a1 *a a2 =[sigma]=> n
+| divide : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = Adiv i1 i2 ->
+    a1 \a a2 =[sigma]=> n
+| min : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = Asub i1 i2 ->
+    a1 -a a2 =[sigma]=> n
+| modullo : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = Amod i1 i2 ->
+    a1 %a a2 =[sigma]=> n 
+where "a =[ sigma ]=> n" := (aeval a sigma n).
+
+
+Reserved Notation "B ={ E }=> B'" (at level 60).
+Inductive beval : BExp -> Env -> Result -> Prop :=
+| b_con : forall c env, bcon c ={ env }=> res_bool c 
+| b_var : forall v env, bvar v ={ env }=> (env v)
+| b_lessthan : forall a1 a2 i1 i2 env b,
+    a1 =[ env ]=> i1 ->
+    a2 =[ env ]=> i2 ->
+    b = (Blt i1 i2) ->
+    a1 <b a2 ={ env }=> b
+| b_egal : forall a1 a2 i1 i2 env b,
+    a1 =[ env ]=> i1 ->
+    a2 =[ env ]=> i2 ->
+    b = (Begal i1 i2) ->
+    a1 ==b a2 ={ env }=> b
+| b_not : forall a1 i1 env b,
+    a1 ={ env }=> i1 ->
+    b = (Bnot i1) ->
+    !b a1 ={ env }=> b
+| b_and : forall a1 a2 i1 i2 env b,
+    a1 ={ env }=> i1 ->
+    a2 ={ env }=> i2 ->
+    b = (Band i1 i2) ->
+    (a1 &&b a2) ={ env }=> b 
+| b_or : forall a1 a2 i1 i2 env b,
+    a1 ={ env }=> i1 ->
+    a2 ={ env }=> i2 ->
+    b = (Bor i1 i2) ->
+    (a1 ||b a2) ={ env }=> b 
+where "B ={ env }=> B'" := (beval B env B').
+
+
+
+Reserved Notation "B =$ E $=> B'" (at level 60).
+Inductive seval : STExp -> Env -> Result -> Prop :=
+| s_con : forall c env, scon c =$ env $=> res_string c 
+| s_var : forall v env, svar v =$ env $=> (env v)
+| s_mul : forall a1 i1 n env b,
+    a1 =$ env  $=> i1 ->
+    b = (Smul i1 n) ->
+    (a1 *** n) =$ env $=> b 
+| s_concat : forall a1 a2 i1 i2 env b,
+    a1 =$ env $=> i1 ->
+    a2 =$ env $=> i2 ->
+    b = (Sconcat i1 i2) ->
+    (a1 +Us+ a2) =$ env $=> b 
+where "B =$ env $=> B'" := (seval B env B'). 
+
+
+
+Reserved Notation "B =@ T @=> B'" (at level 70).
+Inductive veval : VExp -> Env -> Result -> Prop :=
+| v_con : forall c env, vcon c =@ env @=> res_array c 
+| v_var : forall v env, vvar v =@ env @=> (env v) 
+| v_add : forall a1 i1 n env b,
+    a1 =@ env @=> i1 ->
+    b = (Vadd i1 n) ->
+    (a1 +v n) =@ env @=> b 
+| v_mull : forall a1 i1 n env b,
+    a1 =@ env @=> i1 ->
+    b = (Vmull i1 n) ->
+    (a1 *v n) =@ env @=> b 
+| v_min : forall a1 i1 n env b,
+    a1 =@ env @=> i1 ->
+    b = (Vmin i1 n) ->
+    (a1 -v n) =@ env @=> b 
+| v_suply : forall a1 i1 n env b,
+    a1 =@ env @=> i1 ->
+    b = (Vsuply i1 n) ->
+    (a1 +Uv n) =@ env @=> b 
+| v_concat : forall a1 a2 i1 i2 env b, 
+    a1 =@ env @=> i1 ->
+    a2 =@ env @=> i2 ->
+    b = (Vconcat i1 i2) ->
+    (a1 +Uv+ a2) =@ env @=> b 
+where "B =@ T @=> B'" := (veval B T B'). 
+
+
+
+Reserved Notation "B -T A T-> B'" (at level 70).
+Inductive eval : Stmt -> Env -> Env -> Prop := 
+| e_seq : forall s1 s2 sigma sigma1 sigma2,
+    s1 -T sigma T-> sigma1 ->
+    s2 -T sigma1 T-> sigma2 ->
+    (s1 ;; s2) -T sigma T-> sigma2
+| e_nat_declaration: forall a i x sigma sigma',
+    true = (Result_beq undeclared (sigma x)) ->
+    a =[ sigma ]=> (res_nat i) ->
+    sigma' = (update sigma x (res_nat  i)) ->
+    (INat x ::= a) -T sigma T-> sigma'
+| e_nat_assignment: forall a i x sigma sigma',
+    false = Result_beq undeclared (sigma x)  ->
+    a =[ sigma ]=> (res_nat i) ->
+    sigma' = (update sigma x (res_nat i)) ->
+    (x :n= a) -T sigma T-> sigma'
+| e_bool_declaration: forall a i x sigma sigma',
+    true = (Result_beq undeclared (sigma x)) ->
+    a ={ sigma }=> (res_bool i) ->
+    sigma' = (update sigma x (res_bool i)) ->
+    (IBool x ::= a) -T sigma T-> sigma'
+| e_bool_assignment: forall a i x sigma sigma',
+    false = Result_beq undeclared (sigma x)  ->
+    a ={ sigma }=> (res_bool i) ->
+    sigma' = (update sigma x (res_bool i)) ->
+    (x :b= a) -T sigma T-> sigma'
+| e_array_declaration: forall a i x sigma sigma',
+    true = (Result_beq undeclared (sigma x)) ->
+    a =@ sigma @=> (res_array i) ->
+    sigma' = (update sigma x (res_array i)) ->
+    (IArr x ::= a) -T sigma T-> sigma'
+| e_array_assignment: forall a i x sigma sigma',
+    false = Result_beq undeclared (sigma x)  ->
+    a =@ sigma @=> (res_array i) ->
+    sigma' = (update sigma x (res_array i)) ->
+    (x :a= a) -T sigma T-> sigma'
+| e_string_declaration: forall a i x sigma sigma',
+    true = (Result_beq undeclared (sigma x)) ->
+    a =$ sigma $=> (res_string i) ->
+    sigma' = (update sigma x (res_string i)) ->
+    (IStr x ::= a) -T sigma T-> sigma'
+| e_string_assignment: forall a i x sigma sigma',
+    false = Result_beq undeclared (sigma x)  ->
+    a =$ sigma $=> (res_string i) ->
+    sigma' = (update sigma x (res_string i)) ->
+    (x :s= a) -T sigma T-> sigma'
+| e_whilefalse : forall b s sigma,
+    b ={ sigma }=> res_bool false ->
+    while b s -T sigma T-> sigma
+| e_whiletrue : forall b s sigma sigma', (*while fara break*)
+    b ={ sigma }=> res_bool true ->
+    (s ;; while b s) -T sigma T-> sigma' ->
+    while b s -T sigma T-> sigma'
+| e_while_break : forall b s sigma,
+    b ={ sigma }=> res_bool true ->
+    s = break ->
+    while b s -T sigma T-> sigma
+| e_while_s_break : forall b s s' sigma sigma',
+    b ={ sigma }=> res_bool true ->
+    s = (s' ;; break) ->
+    s' -T sigma T-> sigma' ->
+    while b s -T sigma T-> sigma'
+| e_while_break_s : forall b s s' sigma,
+    b ={ sigma }=> res_bool true ->
+    s = (break ;; s') ->
+    while b s -T sigma T-> sigma
+| e_while_s1_break_s2 : forall b s s' s'' sigma sigma',
+    b ={ sigma }=> res_bool true ->
+    s = ( s' ;; break ;; s'') ->
+    s' -T sigma T-> sigma' ->
+    while b s -T sigma T-> sigma'
+| e_iffalse : forall b s1 sigma,
+    b ={ sigma }=> res_bool false ->
+    ifthen b s1-T sigma T-> sigma
+| e_iftrue : forall b s1 sigma sigma',
+    b ={ sigma }=> res_bool true ->
+    s1 -T sigma T-> sigma' ->
+    ifthen b s1 -T sigma T-> sigma'
+| e_ifelsefalse : forall b s1 s2 sigma sigma',
+    b ={ sigma }=> res_bool false ->
+    s2 -T sigma T-> sigma'->
+    ifthenelse b s1 s2 -T sigma T-> sigma'
+| e_ifelsetrue : forall b s1 s2 sigma sigma',
+    b ={ sigma }=> res_bool true ->
+    s1 -T sigma T-> sigma'->
+    ifthenelse b s1 s2 -T sigma T-> sigma'
+| e_switch_seq_casefalse : forall a i a1 i1 sigma sigma' s s1 s2,
+    a =[ sigma ]=> i ->
+    s = ((case a1 s1) ;; s2) ->
+    a1 =[ sigma ]=> i1 ->
+    false = Result_beq i i1 ->
+    switch_case a s2 -T sigma T-> sigma' ->
+    switch_case a s -T sigma T-> sigma'
+| e_switch_seq_casetrue : forall a i a1 i1 sigma sigma' sigma'' s s1 s2,
+    a =[ sigma ]=> i ->
+    s = ((case a1 s1) ;; s2) ->
+    a1 =[ sigma ]=> i1 ->
+    i = i1 -> 
+    s1 -T sigma T-> sigma'->
+    switch_case a s2 -T sigma' T-> sigma'' ->
+    switch_case a s -T sigma T-> sigma''
+| e_switch_case_true : forall a i a1 i1 sigma sigma' s s1,
+    a =[ sigma ]=> i ->
+    s = (case a1 s1) ->
+    a1 =[ sigma ]=> i1 ->
+    i = i1 ->
+    s1 -T sigma T-> sigma'->
+    switch_case a s -T sigma T-> sigma'
+| e_switch_case_false : forall a i a1 i1 sigma s s1,
+    a =[ sigma ]=> i ->
+    s = (case a1 s1) ->
+    a1 =[ sigma ]=> i1 ->
+    false = Result_beq i i1 ->
+    switch_case a s -T sigma T-> sigma
+| e_exit : forall s sigma,(* Permite terminarea unui program sau neexecutatea unor comenzi *)
+    exit s -T sigma T-> sigma 
+| e_forfalse : forall s1 b s2 s3 sigma sigma',
+    s1-T sigma T-> sigma'->
+    b ={ sigma }=> res_bool false ->
+    for_ s1 b s2 s3 -T sigma T-> sigma'
+| e_fortrue : forall s1 b s2 s3 sigma sigma',
+    b ={ sigma }=> res_bool true ->
+    (s1 ;; while b s3 ;; s2) -T sigma T-> sigma' ->
+    for_ s1 b s2 s3 -T sigma T-> sigma'
+| e_dowhile_false : forall b s sigma sigma',
+    b ={ sigma }=> res_bool false ->
+    s -T sigma T-> sigma'->
+    do_while s b -T sigma T-> sigma'
+| e_dowhile_true : forall b s sigma sigma' sigma'', 
+    b ={ sigma }=> res_bool true ->
+    s -T sigma T-> sigma' ->
+    do_while s b -T sigma' T-> sigma'' ->
+    do_while s b -T sigma T-> sigma''
+| e_dowhile_break : forall b s sigma,
+    b ={ sigma }=> res_bool true ->
+    s = break ->
+    do_while s b -T sigma T-> sigma
+| e_dowhile_s_break : forall b s s' sigma sigma',
+    b ={ sigma }=> res_bool true ->
+    s = (s' ;; break) ->
+    s' -T sigma T-> sigma' ->
+    do_while s b -T sigma T-> sigma'
+| e_dowhile_break_s : forall b s s' sigma,
+    b ={ sigma }=> res_bool true ->
+    s = (break ;; s') ->
+    do_while s b -T sigma T-> sigma
+| e_dowhile_s1_break_s2 : forall b s s' s'' sigma sigma',
+    b ={ sigma }=> res_bool true ->
+    s = ( s' ;; break ;; s'') ->
+    s' -T sigma T-> sigma' ->
+    do_while s b -T sigma T-> sigma'
+where "s -T sigma T-> sigma'" := (eval s sigma sigma'). 
+
+
+
+Definition program := INat "a"  ::= 10 ;;
+  DO_WHILE <<<< ("a" :n= 12 ;;"a" :n= "a" -a 1) ;; break ;; ("a" :n= 11 ;;"a" :n= "a" *a "a") >>>> ("a" ==b 10)  
+.
+
+Example dowhile_s1_break_s2 : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 11.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_dowhile_s1_break_s2.
+      --- eapply b_egal. 
+        ---- eapply var.
+        ---- eapply const.
+        ---- unfold Begal. simpl. reflexivity.
+      --- intuition.
+      --- eapply e_seq.
+        ---- eapply e_nat_assignment.
+          ----- simpl. reflexivity.
+          ----- eapply const.
+          ----- intuition.
+        ---- eapply e_nat_assignment.
+          ----- simpl. reflexivity.
+          ----- eapply min.
+            ------ eapply var.
+            ------ eapply const.
+            ------  unfold Asub. simpl. reflexivity.
+          -----intuition.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+(*
+
+
+Definition program := INat "a"  ::= 10 ;;
+  DO_WHILE <<<< ("a" :n= 12 ;;"a" :n= "a" -a 1) ;; break ;; ("a" :n= 11 ;;"a" :n= "a" *a "a") >>>> ("a" ==b 10)  
+.
+
+Example dowhile_s1_break_s2 : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 11.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_dowhile_s1_break_s2.
+      --- eapply b_egal. 
+        ---- eapply var.
+        ---- eapply const.
+        ---- unfold Begal. simpl. reflexivity.
+      --- intuition.
+      --- eapply e_seq.
+        ---- eapply e_nat_assignment.
+          ----- simpl. reflexivity.
+          ----- eapply const.
+          ----- intuition.
+        ---- eapply e_nat_assignment.
+          ----- simpl. reflexivity.
+          ----- eapply min.
+            ------ eapply var.
+            ------ eapply const.
+            ------  unfold Asub. simpl. reflexivity.
+          -----intuition.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+
+Definition program := INat "a"  ::= 10 ;;
+  DO_WHILE <<<< break ;; ("a" :n= 11 ;;"a" :n= "a" *a "a") >>>> ("a" ==b 10)  
+.
+
+Example dowhile_break_s : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 10.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_dowhile_break_s.
+      --- eapply b_egal. 
+        ---- eapply var.
+        ---- eapply const.
+        ---- unfold Begal. simpl. reflexivity.
+      --- intuition.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+Definition program := INat "a"  ::= 10 ;;
+  DO_WHILE <<<< ("a" :n= 11 ;;"a" :n= "a" *a "a")  ;; break >>>> ("a" ==b 10)  
+.
+
+Example dowhile_s_break : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 121.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_dowhile_s_break.
+      --- eapply b_egal. 
+        ---- eapply var.
+        ---- eapply const.
+        ---- unfold Begal. simpl. reflexivity.
+      --- intuition.
+      --- eapply e_seq.
+        ---- eapply e_nat_assignment.
+          ----- simpl. reflexivity.
+          ----- eapply const.
+          ----- intuition.
+        ---- eapply e_nat_assignment.
+          ----- simpl. reflexivity.
+          ----- eapply times.
+            ------ eapply var.
+            ------ eapply var.
+            ------ unfold Amul. simpl. reflexivity.
+          ----- intuition.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+Example dowhile_break : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 10.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_dowhile_break.
+      --- eapply b_egal. 
+        ---- eapply var.
+        ---- eapply const.
+        ---- unfold Begal. simpl. reflexivity.
+      --- reflexivity.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+
+Definition program := INat "a"  ::= 0 ;; 
+  DO_WHILE <<<< "a"  :n= "a" +a 1  >>>> ("a" ==b 0)  
+.
+
+Example do_while_true : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 2.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- intuition.
+    -- eapply e_dowhile_true.
+      --- eapply b_egal.
+        ---- eapply var.  
+        ---- eapply const.
+        ---- unfold Begal. simpl. reflexivity.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply add.
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Aplus. simpl. reflexivity.
+        ---- intuition.
+      --- eapply e_dowhile_false.
+        ---- eapply b_egal.
+          ----- eapply var.  
+          ----- eapply const.
+          ----- unfold Begal. simpl. reflexivity.
+        ---- eapply e_nat_assignment.
+          ----- simpl. reflexivity.
+          ----- eapply add.
+            ------ eapply var.
+            ------ eapply const.
+            ------ unfold Aplus. simpl. reflexivity.
+          ----- intuition.
+  - unfold update. unfold env0. simpl. reflexivity.
+Qed.
+
+Definition program := INat "a"  ::= 0 ;; 
+  DO_WHILE <<<< "a"  :n= "a" +a 1  >>>> ("a" ==b 3)  
+.
+
+Example do_while_false : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 1.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- intuition.
+    -- eapply e_dowhile_false.
+      --- eapply b_egal.
+        ---- eapply var.  
+        ---- eapply const.
+        ---- unfold Begal. simpl. reflexivity.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply add.
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Aplus. simpl. reflexivity.
+        ---- intuition.
+  - unfold update. unfold env0. simpl. reflexivity.
+Qed.
+
+Definition program := INat "a"  ::= 3 ;;
+  "a" :n= "a" +a 2 ;; 
+   SWITCH ( "a" ) 
+        {  (CASE @ 5 @ # "a" :n= 7 +a "a" #) ;; 
+            (CASE @ 12 @ # "a" :n= "a" +a 1 #)  
+        }  
+.
+
+Example switch_case_seq_true : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 13.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_seq.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply add.
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Aplus. reflexivity.
+        ----  reflexivity.
+      --- eapply e_switch_seq_casetrue.
+        ---- simpl. eapply var.
+        ---- intuition.
+        ---- eapply const.
+        ---- unfold update. unfold env0. simpl. reflexivity.
+        ---- eapply e_nat_assignment.
+          ----- simpl. reflexivity.
+          ----- eapply add.
+            ------ eapply const.
+            ------ eapply var.
+            ------ unfold Aplus. simpl. reflexivity.
+          ----- reflexivity.
+        ---- eapply e_switch_case_true. 
+          ----- eapply var.
+          ----- intuition.
+          ----- eapply const.
+          ----- unfold update. unfold env0. simpl. reflexivity.
+          ----- eapply e_nat_assignment.
+            ------- simpl. reflexivity.
+            ------- eapply add.
+              -------- eapply var.
+              -------- eapply const.
+              -------- unfold Aplus. simpl. reflexivity.
+            ------- reflexivity.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+Definition program := INat "a"  ::= 3 ;;
+  "a" :n= "a" +a 2 ;; 
+   SWITCH ( "a" ) 
+        {  (CASE @ 6 @ # "a" :n= 7 +a "a" #) ;; 
+            (CASE @ 10 @ # "a" :n= "a" +a 1 #)  
+        }  
+.
+
+Example switch_case_seq_false : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 5.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_seq.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply add.
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Aplus. reflexivity.
+        ----  reflexivity.
+      --- eapply e_switch_seq_casefalse.
+        ---- simpl. eapply var.
+        ---- intuition.
+        ---- eapply const.
+        ---- unfold update. unfold env0. simpl. reflexivity.
+        ----  eapply e_switch_case_false.
+          ----- eapply var.
+          ----- intuition.
+          ----- eapply const.
+          ----- simpl. reflexivity.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+
+Definition program := INat "a"  ::= 3 ;;
+  "a" :n= "a" +a 2 ;; 
+   SWITCH ( "a" ) 
+        {  (CASE @ 5 @ # "a" :n= 7 +a "a" #) ;; 
+            (CASE @ 12 @ # "a" :n= "a" +a 1 #)  
+        }  
+.
+
+Example switch_case_seq_true : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 13.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_seq.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply add.
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Aplus. reflexivity.
+        ----  reflexivity.
+      --- eapply e_switch_seq_casetrue.
+        ---- simpl. eapply var.
+        ---- intuition.
+        ---- eapply const.
+        ---- unfold update. unfold env0. simpl. reflexivity.
+        ---- eapply e_nat_assignment.
+          ----- simpl. reflexivity.
+          ----- eapply add.
+            ------ eapply const.
+            ------ eapply var.
+            ------ unfold Aplus. simpl. reflexivity.
+          ----- reflexivity.
+        ---- eapply e_switch_case_true. 
+          ----- eapply var.
+          ----- intuition.
+          ----- eapply const.
+          ----- unfold update. unfold env0. simpl. reflexivity.
+          ----- eapply e_nat_assignment.
+            ------- simpl. reflexivity.
+            ------- eapply add.
+              -------- eapply var.
+              -------- eapply const.
+              -------- unfold Aplus. simpl. reflexivity.
+            ------- reflexivity.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+
+
+Definition program := INat "a"  ::= 13 ;;
+  "a" :n= "a" *a "a" ;; 
+  while ("a" <b 999) ( ("a" :n= 0) ;; break ;; ("a" :n= "a" *a 2 ;; "a" :n= "a" +a 2) )
+.
+
+Example while_s1_break_s2 : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 0.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_seq.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply times.
+          ----- eapply var.
+          ----- eapply var.
+          ----- unfold Amul. simpl. reflexivity.
+        ---- reflexivity.
+      --- eapply e_while_s1_break_s2.
+        ---- eapply b_lessthan. 
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Begal. simpl. reflexivity.
+        ---- intuition.
+        ---- eapply e_nat_assignment.
+          ----- reflexivity.
+          ----- eapply const.
+          ----- reflexivity.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+
+Definition program := INat "a"  ::= 13 ;;
+  "a" :n= "a" *a "a" ;; 
+  while ("a" <b 999) ( break ;; ("a" :n= "a" *a 2 ;; "a" :n= "a" +a 2) )
+.
+
+Example while_break_s : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 169.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_seq.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply times.
+          ----- eapply var.
+          ----- eapply var.
+          ----- unfold Amul. simpl. reflexivity.
+        ---- reflexivity.
+      --- eapply e_while_break_s.
+        ---- eapply b_lessthan. 
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Begal. simpl. reflexivity.
+        ---- intuition.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+
+Definition program := INat "a"  ::= 13 ;;
+  "a" :n= "a" *a "a" ;; 
+  while ("a" <b 999) ( ("a" :n= "a" *a 2 ;; "a" :n= "a" +a 2) ;; break)
+.
+
+Example while_S_break : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 340.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_seq.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply times.
+          ----- eapply var.
+          ----- eapply var.
+          ----- unfold Amul. simpl. reflexivity.
+        ---- reflexivity.
+      --- eapply e_while_s_break.
+        ---- eapply b_lessthan. 
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Begal. simpl. reflexivity.
+        ---- intuition.
+        ---- eapply e_seq. 
+          ----- eapply e_nat_assignment.
+            ------ simpl. reflexivity.
+            ------ eapply times.
+              ------- eapply var.
+              ------- eapply const.
+              ------- unfold Amul. simpl. reflexivity.
+            ------ reflexivity.
+          ----- eapply e_nat_assignment.
+            ------ reflexivity. 
+            ------ eapply add.
+              ------- eapply var.
+              ------- eapply const.
+              ------- unfold Aplus. simpl. reflexivity.
+            ------ reflexivity.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+Definition program := INat "a"  ::= 13 ;;
+  "a" :n= "a" *a "a" ;; 
+  while ("a" ==b 169) (break)
+.
+
+Example while_break : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 169.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_seq.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply times.
+          ----- eapply var.
+          ----- eapply var.
+          ----- unfold Amul. simpl. reflexivity.
+        ---- reflexivity.
+      --- eapply e_while_break.
+        ---- eapply b_egal. 
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Begal. simpl. reflexivity.
+        ---- reflexivity.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+Definition program := INat "a"  ::= 13 ;;
+  "a" :n= "a" *a "a" ;; 
+  while ("a" ==b 169) ("a" :n= "a" *a 2)
+.
+
+Example while_true_false_example : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 338.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- simpl. reflexivity.
+      --- eapply const.
+      --- reflexivity.
+    -- eapply e_seq.
+      --- eapply e_nat_assignment.
+        ---- simpl. reflexivity.
+        ---- eapply times.
+          ----- eapply var.
+          ----- eapply var.
+          ----- unfold Amul. simpl. reflexivity.
+        ---- reflexivity.
+      --- eapply e_whiletrue.
+        ---- eapply b_egal. 
+          ----- eapply var.
+          ----- eapply const.
+          ----- unfold Begal. simpl. reflexivity.
+        ---- eapply e_seq.
+          ----- eapply e_nat_assignment.
+            ------ simpl. reflexivity.
+            ------  eapply times.
+              -------- eapply var.
+              -------- eapply const.
+              -------- unfold Amul. simpl. reflexivity.
+            ------ reflexivity.
+          ----- eapply e_whilefalse.
+            ------ eapply b_egal.
+              -------- eapply var.
+              -------- eapply const.
+              -------- unfold Begal. simpl. reflexivity.
+  -unfold update. simpl. reflexivity.
+Qed.
+
+
+Definition program := INat "a"  ::= 13 ;;
+  exit
+  ("a" :n= "a" *a "a" ;; 
+  while ("a" ==b 169) ("a" :n= "a" *a "a"))
+.
+
+Example exit_example : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 13.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- unfold env0. simpl. reflexivity.
+      --- eapply const.
+      --- unfold update. unfold env0. reflexivity.
+    -- eapply e_exit.
+  - simpl. reflexivity.
+Qed.
+
+
+Definition nate := IStr "a"  ::= scon "Aurolac+alin_" ;;
+  "a" :s= "a" *** 3 .
+
+Example nattt : exists ENV, nate -T env0 T-> ENV /\ ENV "a" = res_string "Aurolac+alin_Aurolac+alin_Aurolac+alin_".
+Proof.
+  eexists.
+  split.
+  - unfold nate. eapply e_seq.
+    -- eapply e_string_declaration.
+      --- simpl. reflexivity.
+      --- eapply s_con.
+      --- unfold update. reflexivity.
+    -- eapply e_string_assignment.
+      --- simpl. reflexivity.
+      --- eapply s_mul.
+        ---- eapply s_var.
+        ---- unfold Smul. simpl. reflexivity.
+      --- reflexivity.
+  - unfold update. simpl. reflexivity.
+Qed.
+
+Definition nate := IArr "a"  ::= (Carray (Carray (Carray (Carray start_array 4) 5) 10) 7) ;;
+  "a" :a= "a" *v 3 .
+
+Example nattt : exists ENV, nate -T env0 T-> ENV /\ ENV "a" = res_array (Carray (Carray (Carray (Carray start_array 12) 15) 30) 21).
+Proof.
+  eexists.
+  split.
+  - unfold nate. eapply e_seq.
+    -- eapply e_array_declaration.
+      --- simpl. reflexivity.
+      --- eapply v_con.
+      --- reflexivity.
+    --  eapply e_array_assignment.
+      --- simpl. reflexivity.
+      --- eapply v_mull.
+        ---- eapply v_var.
+        ---- unfold Vmull. simpl. reflexivity.
+    --- unfold update. simpl. reflexivity.
+  - simpl. reflexivity.
+Qed.
+
+Definition nate := INat "a"  ::= 13 ;;
+  "a" :n= "a" *a "a" .
+
+Example nattt : exists ENV, nate -T env0 T-> ENV /\ ENV "a" = res_nat 169.
+Proof.
+  eexists.
+  split.
+  - unfold nate. eapply e_seq.
+    -- eapply e_nat_declaration.
+      --- unfold env0. simpl. reflexivity.
+      --- eapply const.
+      --- unfold update. unfold env0. reflexivity.
+    -- eapply e_nat_assignment.
+      --- simpl. reflexivity.
+      --- eapply times.
+        ---- eapply var.
+        ---- eapply var.
+        ---- unfold Amul. simpl. reflexivity.
+      --- unfold update. reflexivity.
+  - simpl. reflexivity.
+Qed.
+
+Definition nate2 := "a" :n= "a" *a "a" ;;
+INat "a"  ::= 13 .
+
+Example natttt : exists ENV, nate2 -T env0 T-> ENV /\ ENV "a" = undeclared.
+Proof.
+  eexists.
+  split.
+  - unfold nate2. eapply e_seq.
+    -- eapply e_nat_assignment.
+      --- simpl.
+Admitted. 
+
+Example nattt : exists ENV, nate -T env0 T-> ENV /\ ENV "a" = res_bool false.
+Proof.
+  eexists. split.
+  - unfold nate. eapply e_seq.
+    -- eapply e_bool_declaration.
+      --- simpl. reflexivity.
+      --- eapply b_con.
+      --- reflexivity.
+    -- eapply e_bool_assignment.
+      --- simpl. reflexivity.
+      --- eapply b_and.
+        ---- eapply b_var.
+        ---- eapply b_con.
+        ---- reflexivity.
+      --- reflexivity.
+  - unfold update. simpl. reflexivity.
+Qed.
+  
+*)
+
