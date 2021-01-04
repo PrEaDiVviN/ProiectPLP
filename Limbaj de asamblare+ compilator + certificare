@@ -1,0 +1,380 @@
+(* Librariile necesare pentru string-uri *)
+Require Import Strings.String.
+Local Open Scope string_scope.
+Scheme Equality for string. (* Creaza functia de egalitate pe string-uri automat *)
+(* Liste si notatiile pentru ele *)
+Require Import List.
+Import ListNotations.
+
+Inductive Number_Value :=
+| error_number : Number_Value
+| Cnum : nat -> Number_Value. 
+Inductive Boolean_Value :=
+| error_bool : Boolean_Value
+| Cbool : bool -> Boolean_Value.
+Coercion Cnum: nat >-> Number_Value.
+Coercion Cbool : bool >-> Boolean_Value.
+
+Inductive Result :=
+| res_nat : Number_Value -> Result
+| res_bool : Boolean_Value -> Result.
+
+Coercion res_nat: Number_Value >-> Result.
+Coercion res_bool: Boolean_Value >-> Result. 
+
+(* Expresii aritmetice *)
+Inductive Exp :=
+| var: string -> Exp 
+| con: Result -> Exp
+| aplus: Exp -> Exp -> Exp
+| asub: Exp -> Exp -> Exp
+| amul: Exp -> Exp -> Exp 
+| adiv: Exp -> Exp -> Exp 
+| amod: Exp -> Exp -> Exp
+| begal: Exp -> Exp -> Exp
+| blt : Exp -> Exp -> Exp
+| bnot : Exp -> Exp
+| band : Exp -> Exp -> Exp
+| bor : Exp -> Exp -> Exp.
+
+Coercion con: Result >-> Exp. 
+Coercion var : string >-> Exp.
+
+(* Notatiile pentru operatiile aritmetice *)
+Notation "A +a B" := (aplus A B)(at level 50, left associativity).
+Notation "A -a B" := (asub A B)(at level 50, left associativity).
+Notation "A *a B" := (amul A B)(at level 48, left associativity).
+Notation "A \a B" := (adiv A B)(at level 48, left associativity).
+Notation "A %a B" := (amod A B)(at level 45, left associativity).
+(* Notations used for boolean operations *)
+Notation "A <b B" := (blt A B) (at level 54).
+Notation "A ==b B" := (begal A B) (at level 55).
+Notation "!b A" := (bnot A)(at level 51, left associativity).
+Notation "A &&b B" := (band A B)(at level 52, left associativity).
+Notation "A ||b B" := (bor A B)(at level 53, left associativity).
+
+
+
+Definition Env := string -> Result.
+
+Definition update (env : Env) (x : string) (v : Result) : Env :=
+fun y =>
+  if (string_eq_dec y x) 
+  then v
+  else (env y).
+
+(*-----------------------------------------------------------------------------*)
+Definition Aplus (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => (res_nat (Cnum (x' + y')))
+| _ , _ => res_nat error_number
+end.
+
+Definition Asub (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => if(Nat.ltb x' y')
+                      then (res_nat error_number)
+                      else (res_nat (Cnum (x' - y')))
+| _ , _ => res_nat error_number
+end.
+
+Definition Amul (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => (res_nat (Cnum (x' * y')))
+| _ , _ => res_nat error_number
+end.
+
+Definition Adiv (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => match x', y' with
+                                            | x'', 0 => res_nat error_number
+                                            | x'', y'' => (res_nat (Cnum(Nat.div x'' y'')))
+                                            end
+| _ , _ => res_nat error_number
+end.
+
+Definition Amod (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat(Cnum x')), (res_nat(Cnum y')) => if (Nat.leb y' 0) 
+                                            then res_nat error_number
+                                            else (res_nat (Cnum (Nat.modulo x' y')))
+| _ , _ => res_nat error_number
+end.
+
+Definition Begal (x : Result) (y : Result) : Result :=
+match x, y with
+| (res_nat (Cnum x')),(res_nat (Cnum y')) => if ( Nat.eqb x' y')
+                                             then res_bool (Cbool true)
+                                             else res_bool (Cbool false )
+| _ , _ => res_bool error_bool
+end.
+
+Definition Blt (x : Result) (y : Result) : Result :=
+match x, y with
+|(res_nat (Cnum x')),(res_nat (Cnum y')) => if ( Nat.ltb x' y')
+                                            then res_bool (Cbool true)
+                                            else res_bool (Cbool false )
+| _ , _ => res_bool error_bool
+end.
+
+
+Definition Bnot (x : Result)  : Result :=
+match x with
+| res_bool (Cbool true) => res_bool (Cbool false)
+| res_bool (Cbool false) => res_bool (Cbool true)
+| _ => res_bool error_bool
+end.
+
+Definition Band (x : Result) (y : Result) : Result :=
+match x, y with
+| res_bool (Cbool true),res_bool (Cbool true) => res_bool (Cbool true)
+| res_bool (Cbool true),res_bool (Cbool false) => res_bool (Cbool false)
+| res_bool (Cbool false),res_bool (Cbool true) => res_bool (Cbool false)
+| res_bool (Cbool false),res_bool (Cbool false) => res_bool (Cbool false)
+| _ , _ => res_bool error_bool
+end.
+
+Definition Bor (x : Result) (y : Result) : Result :=
+match x, y with
+| res_bool (Cbool true),res_bool (Cbool true) => res_bool (Cbool true)
+| res_bool (Cbool true),res_bool (Cbool false) => res_bool (Cbool true)
+| res_bool (Cbool false),res_bool (Cbool true) => res_bool (Cbool true )
+| res_bool (Cbool false),res_bool (Cbool false) => res_bool (Cbool false)
+| _ , _ => res_bool error_bool
+end.
+
+(*-----------------------------------------------------------------------------*)
+
+Fixpoint interpret (e : Exp) (env : Env) : Result :=
+  match e with
+  | con c => c
+  | var a => (env a)
+  | aplus e1 e2 => Aplus (interpret e1 env) (interpret e2 env)
+  | asub e1 e2 => Asub (interpret e1 env) (interpret e2 env)
+  | amul e1 e2 => Amul (interpret e1 env) (interpret e2 env)
+  | adiv e1 e2 => Adiv (interpret e1 env) (interpret e2 env)
+  | amod e1 e2 => Amod (interpret e1 env) (interpret e2 env)
+  | begal e1 e2 => Begal (interpret e1 env) (interpret e2 env)
+  | blt e1 e2 => Blt (interpret e1 env) (interpret e2 env)
+  | bnot e1 => Bnot (interpret e1 env) 
+  | band e1 e2 => Band (interpret e1 env) (interpret e2 env)
+  | bor e1 e2 => Bor (interpret e1 env) (interpret e2 env)
+  end.
+
+Definition env0 : Env := fun y => res_nat 0.
+
+Compute interpret (2 *a "x" +a 7) env0.
+
+(*-----------------------------------------------------------------------------*)
+
+(* Definirea instructiunilor limbajului de asamblare *)
+Inductive Instruction :=
+| push_const : Result -> Instruction
+| push_var : string -> Instruction
+| add : Instruction
+| mul : Instruction
+| sub: Instruction
+| div: Instruction
+| mod: Instruction
+| egal: Instruction
+| lt : Instruction
+| not : Instruction
+| and : Instruction 
+| or : Instruction.
+
+Compute push_const (res_nat (Cnum 5)).
+Compute push_const (res_bool (Cbool true)).
+
+(*-----------------------------------------------------------------------------*)
+(* Definirea stack-ului *)
+Definition Stack := list Result.
+
+
+(*-----------------------------------------------------------------------------*)
+(* Executarea unui instructiuni *)
+Definition run_instruction (i : Instruction) (env : Env) (stack : Stack) : Stack :=
+  match i with
+  | push_const c => (c :: stack)
+  | push_var x => ((env x) :: stack)
+  | add => match stack with
+           | n1 :: n2 :: stack' => (Aplus n1 n2) :: stack'
+           | _ => stack
+           end 
+  | mul => match stack with
+           | n1 :: n2 :: stack' => (Amul n1 n2) :: stack'
+           | _ => stack
+           end 
+  | sub => match stack with
+           | n1 :: n2 :: stack' => (Asub n1 n2) :: stack'
+           | _ => stack
+           end 
+  | div =>match stack with
+           | n1 :: n2 :: stack' => (Adiv n1 n2) :: stack'
+           | _ => stack
+           end 
+  | mod =>match stack with
+           | n1 :: n2 :: stack' => (Amod n1 n2) :: stack'
+           | _ => stack
+           end 
+  | egal =>match stack with
+           | n1 :: n2 :: stack' => (Begal n1 n2) :: stack'
+           | _ => stack
+           end
+  | lt =>match stack with
+           | n1 :: n2 :: stack' => (Blt n1 n2) :: stack'
+           | _ => stack
+           end
+  | not =>match stack with
+           | n1 :: stack' => (Bnot n1) :: stack'
+           | _ => stack
+           end
+  | and =>match stack with
+           | n1 :: n2 :: stack' => (Band n1 n2) :: stack'
+           | _ => stack
+           end
+  | or =>match stack with
+           | n1 :: n2 :: stack' => (Bor n1 n2) :: stack'
+           | _ => stack
+           end
+  end.
+
+Compute (run_instruction (push_const (res_nat 1012)) env0 []).
+Compute (run_instruction (push_var "x") env0 []).
+Compute (run_instruction add env0 [(res_nat 10);(res_nat 12);(res_nat 20)]).
+Compute (run_instruction sub env0 [(res_nat 10);(res_nat 12);(res_nat 20)]).
+
+(*-----------------------------------------------------------------------------*)
+(* Executarea unei liste de instructiuni *)
+
+Fixpoint run_instructions (is' : list Instruction) (env : Env) (stack : Stack) : Stack :=
+  match is' with
+  | [] => stack
+  | i :: is'' => run_instructions is'' env (run_instruction i env stack)
+  end.
+
+Definition program := [
+                    push_const (res_nat 19) ;
+                    push_var "x" ;
+                    add;
+                    push_var "x";
+                    mul
+                      ].
+
+Compute run_instructions program env0 [].
+
+(*-----------------------------------------------------------------------------*)
+(*(Compilatorul) Obtinerea din Exp in instructiunile limbajului de asamblare *)
+
+Fixpoint compile (e : Exp) : list Instruction :=
+  match e with 
+  | con c => [push_const c]
+  | var x => [push_var x]
+  | aplus e1 e2 => (compile e2) ++ (compile e1) ++ [add]
+  | amul e1 e2 => (compile e2) ++ (compile e1) ++ [mul]
+  | asub e1 e2 => (compile e2) ++ (compile e1) ++ [sub] 
+  | adiv e1 e2 => (compile e2) ++ (compile e1) ++ [div]
+  | amod e1 e2 => (compile e2) ++ (compile e1) ++ [mod]
+  | begal e1 e2 => (compile e2) ++ (compile e1) ++ [egal]
+  | blt e1 e2 => (compile e2) ++ (compile e1) ++ [lt] 
+  | band e1 e2 => (compile e2) ++ (compile e1) ++ [and]
+  | bor e1 e2 => (compile e2) ++ (compile e1) ++ [or]
+  | bnot e1 => (compile e1) ++ [not]
+  end. (* Adauga noul element la stanga si operatia la dreapta *)
+
+Compute compile (!b "x"). 
+
+(*-----------------------------------------------------------------------------*)
+(* Testarea compilatorului si corectitudini acestuia *)
+
+Definition env1 := update env0 "x" (res_nat 10). 
+
+Compute compile ((("x" *a 10 +a 11 -a 5) \a 15) %a 4). 
+Compute interpret ((("x" *a 10 +a 11 -a 5) \a 15) %a 4) env1.  
+(*Compute compile ((("x" *a 10 +a 11 -a 5) \a 15) %a 4).*)
+Compute run_instructions (compile ((("x" *a 10 +a 11 -a 5)\a 15) %a 4)) env1 []. 
+
+Definition env2 := update env1 "a" (res_bool true).
+
+Compute interpret (!b(((("x" ==b 10) &&b ("x" <b  5)) ||b "a") &&b true)) env2.
+Compute run_instructions (compile (!b(((("x" ==b 10) &&b ("x" <b  5)) ||b "a") &&b true))) env2 []. 
+
+(* Demostrare corectitudine compilator *)
+
+Lemma soundness_helper :
+  forall e env stack is',
+    run_instructions (compile e ++ is') env stack =
+    run_instructions is' env ((interpret e env) :: stack).
+Proof.
+  induction e; intros; simpl; trivial.
+  - rewrite <- app_assoc.
+    rewrite <- app_assoc.
+    rewrite IHe2.
+    rewrite IHe1.
+    simpl.
+    reflexivity.
+  - rewrite <- app_assoc.
+    rewrite <- app_assoc.
+    rewrite IHe2.
+    rewrite IHe1.
+    simpl.
+    reflexivity.
+  - rewrite <- app_assoc.
+    rewrite <- app_assoc.
+    rewrite IHe2.
+    rewrite IHe1.
+    simpl.
+    reflexivity.
+ - rewrite <- app_assoc.
+    rewrite <- app_assoc.
+    rewrite IHe2.
+    rewrite IHe1.
+    simpl.
+    reflexivity.
+ - rewrite <- app_assoc.
+    rewrite <- app_assoc.
+    rewrite IHe2.
+    rewrite IHe1.
+    simpl.
+    reflexivity.
+ - rewrite <- app_assoc.
+    rewrite <- app_assoc.
+    rewrite IHe2.
+    rewrite IHe1.
+    simpl.
+    reflexivity.
+ - rewrite <- app_assoc.
+    rewrite <- app_assoc.
+    rewrite IHe2.
+    rewrite IHe1.
+    simpl.
+    reflexivity.
+ -  rewrite <- app_assoc.
+    rewrite IHe.
+    simpl.
+    reflexivity.
+ - rewrite <- app_assoc.
+    rewrite <- app_assoc.
+    rewrite IHe2.
+    rewrite IHe1.
+    simpl.
+    reflexivity.
+ - rewrite <- app_assoc.
+    rewrite <- app_assoc.
+    rewrite IHe2.
+    rewrite IHe1.
+    simpl.
+    reflexivity.
+Qed.
+
+Theorem soundness :
+  forall e env,
+    run_instructions (compile e) env [] =
+    [interpret e env].
+Proof.
+  intros.
+  Check app_nil_r.
+  rewrite <- app_nil_r with (l := (compile e)).
+  rewrite soundness_helper.
+  simpl. trivial.
+Qed.
+
