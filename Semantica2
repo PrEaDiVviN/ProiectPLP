@@ -106,13 +106,74 @@ Notation "A -v B" := (vmin A B)(at level 70).
 Notation "A +Uv B" := (vsuply A B)(at level 70).
 Notation "A +Uv+ B" := (vconcat A B)(at level 70).
 
+
+(* Sectiunea pentru statement-uri *)
+Inductive Stmt :=
+| number_decl: string -> AExp -> Stmt  
+| bool_decl: string -> BExp -> Stmt  
+| string_decl: string -> STExp -> Stmt
+| array_decl: string -> VExp -> Stmt
+| number_assign : string -> AExp -> Stmt
+| bool_assign : string -> BExp -> Stmt
+| string_assign : string -> STExp -> Stmt
+| array_assign : string -> STExp -> Stmt
+| sequence : Stmt -> Stmt -> Stmt
+| while : BExp -> Stmt -> Stmt
+| do_while: Stmt -> BExp -> Stmt
+| for_ : Stmt -> BExp -> Stmt -> Stmt -> Stmt
+| break : Stmt
+| void : Stmt
+| exit : Stmt -> Stmt
+| ifthenelse : BExp -> Stmt -> Stmt -> Stmt
+| ifthen : BExp -> Stmt -> Stmt
+| function_decl : string -> Stmt -> Stmt -> Stmt
+| function_call : string -> Stmt
+| case : AExp -> Stmt -> Stmt
+| switch_case : AExp -> Stmt -> Stmt.
+
+
+(* Notations for Statements *)
+Notation "X :n= A" := (number_assign X A)(at level 90).
+Notation "X :b= A" := (bool_assign X A)(at level 90).
+Notation "X :s= A" := (string_decl X A)(at level 90).
+Notation "X :a= A" := (array_decl X A)(at level 90).
+Notation "'INat' X ::= A" := (number_decl X A)(at level 90).
+Notation "'IBool' X ::= A" := (bool_decl X A)(at level 90).
+Notation "'IArr' X ::= A" := (array_decl X A)(at level 90).
+Notation "'IStr' X ::= A" := (string_decl X A)(at level 90).
+Notation "S1 ;; S2" := (sequence S1 S2) (at level 93, right associativity).
+Notation "'FOR' A '~~' B '~~' C '{' S '}'" := (for_ A B C S) (at level 90).
+Notation "'IF_' B 'THEN_' S" := (ifthen B S) (at level 90).
+Notation "'IF' B 'THEN' S1 'ELSE' S2" :=(ifthenelse B S1 S2)(at level 50).
+Notation "'DO_WHILE' '<<<<' S '>>>>' B" :=(do_while S B)(at level 89).
+Notation "'WHILE' B  S " := (while B S)(at level 89).
+
+Notation "'CALL' ? S ?" := (function_call S)(at level 90).
+Notation "'function' N '&' L '&' '{' S '}'" := (function_decl N L S) (at level 91).
+
+
+Module ListNotations.
+Notation "[ ]" := nil. 
+Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
+
+Notation "'CASE' '@' N '@'  '#' S '#'" := (case N S) (at level 90).
+Notation "'SWITCH' '(' A ')' '{' B '}'" := (switch_case A B)(at level 90).
+
+
+
 Inductive Result :=
 | undeclared : Result
-| error
 | res_nat : Number_Value -> Result
 | res_bool : Boolean_Value -> Result
 | res_string : String_Value -> Result
-| res_array : Array_Value -> Result.
+| res_array : Array_Value -> Result
+| code : Stmt -> Result.
+
+Definition convert (r : Result) : Stmt :=
+match r with
+| code s' => s'
+| _ => void
+end.
 
 Scheme Equality for Result.
 
@@ -308,59 +369,6 @@ end.
 Compute Vconcat (res_array (Carray (Carray (Carray (Carray start_array 4) 5) 10) 7)) (res_array (Carray (Carray start_array 5) 7)). 
 
 
-(* Sectiunea pentru statement-uri *)
-Inductive Stmt :=
-| number_decl: string -> AExp -> Stmt  
-| bool_decl: string -> BExp -> Stmt  
-| string_decl: string -> STExp -> Stmt
-| array_decl: string -> VExp -> Stmt
-| number_assign : string -> AExp -> Stmt
-| bool_assign : string -> BExp -> Stmt
-| string_assign : string -> STExp -> Stmt
-| array_assign : string -> STExp -> Stmt
-| sequence : Stmt -> Stmt -> Stmt
-| while : BExp -> Stmt -> Stmt
-| do_while: Stmt -> BExp -> Stmt
-| for_ : Stmt -> BExp -> Stmt -> Stmt -> Stmt
-| break : Stmt
-| void : Stmt
-| exit : Stmt -> Stmt
-| ifthenelse : BExp -> Stmt -> Stmt -> Stmt
-| ifthen : BExp -> Stmt -> Stmt
-| function_decl : string -> Stmt -> Stmt -> Stmt
-| function_call : string -> Stmt
-| case : AExp -> Stmt -> Stmt
-| switch_case : AExp -> Stmt -> Stmt.
-
-
-(* Notations for Statements *)
-Notation "X :n= A" := (number_assign X A)(at level 90).
-Notation "X :b= A" := (bool_assign X A)(at level 90).
-Notation "X :s= A" := (string_decl X A)(at level 90).
-Notation "X :a= A" := (array_decl X A)(at level 90).
-Notation "'INat' X ::= A" := (number_decl X A)(at level 90).
-Notation "'IBool' X ::= A" := (bool_decl X A)(at level 90).
-Notation "'IArr' X ::= A" := (array_decl X A)(at level 90).
-Notation "'IStr' X ::= A" := (string_decl X A)(at level 90).
-Notation "S1 ;; S2" := (sequence S1 S2) (at level 93, right associativity).
-Notation "'FOR' A '~~' B '~~' C '{' S '}'" := (for_ A B C S) (at level 90).
-Notation "'IF_' B 'THEN_' S" := (ifthen B S) (at level 90).
-Notation "'IF' B 'THEN' S1 'ELSE' S2" :=(ifthenelse B S1 S2)(at level 50).
-Notation "'DO_WHILE' '<<<<' S '>>>>' B" :=(do_while S B)(at level 89).
-Notation "'WHILE' B  S " := (while B S)(at level 89).
-
-Notation "'CALL' ? S ?" := (function_call S)(at level 90).
-Notation "'function' N '&' L '&' '{' S '}'" := (function_decl N L S) (at level 91).
-
-
-Module ListNotations.
-Notation "[ ]" := nil. 
-Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
-
-Notation "'CASE' '@' N '@'  '#' S '#'" := (case N S) (at level 90).
-Notation "'SWITCH' '(' A ')' '{' B '}'" := (switch_case A B)(at level 90).
-
-
 
 Definition Program :=
   "b" :b= bcon (Cbool true) ;;
@@ -530,8 +538,8 @@ Inductive eval : Stmt -> Env -> Env -> Prop :=
     (x :n= a) -T sigma T-> sigma'
 | e_bool_declaration: forall a i x sigma sigma',
     true = (Result_beq undeclared (sigma x)) ->
-    a ={ sigma }=> (res_bool i) ->
-    sigma' = (update sigma x (res_bool i)) ->
+    a ={ sigma }=> i ->
+    sigma' = (update sigma x i) ->
     (IBool x ::= a) -T sigma T-> sigma'
 | e_bool_assignment: forall a i x sigma sigma',
     false = Result_beq undeclared (sigma x)  ->
@@ -663,45 +671,120 @@ Inductive eval : Stmt -> Env -> Env -> Prop :=
     s = ( s' ;; break ;; s'') ->
     s' -T sigma T-> sigma' ->
     do_while s b -T sigma T-> sigma'
-where "s -T sigma T-> sigma'" := (eval s sigma sigma'). 
+| e_function_declaration : forall s par stm sigma sigma',
+    void = par ->
+    true = (Result_beq undeclared (sigma s)) ->
+    sigma' = (update sigma s (code stm)) -> 
+    function_decl s par stm -T sigma T-> sigma' 
+| e_function_call : forall salvare s sigma sigma',
+    false = (Result_beq undeclared (sigma salvare)) ->
+    sigma salvare = (code s) -> 
+    s -T sigma T-> sigma' ->
+    function_call salvare -T sigma T-> sigma'
+where "s -T sigma T-> sigma'" := (eval s sigma sigma').
 
 
-
-Definition program := INat "a"  ::= 10 ;;
-  DO_WHILE <<<< ("a" :n= 12 ;;"a" :n= "a" -a 1) ;; break ;; ("a" :n= 11 ;;"a" :n= "a" *a "a") >>>> ("a" ==b 10)  
+Definition program :=
+  function "do_something"  &  void  &  { (IBool "b" ::= bcon (Cbool false) ;; "a" :n= 15) } ;;
+  INat "a"  ::= 10 ;;
+  CALL ? "do_something" ?
 .
 
-Example dowhile_s1_break_s2 : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 11.
+Example function_decl_and_call : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 15.
 Proof.
   eexists.
   split.
   - unfold program. eapply e_seq.
-    -- eapply e_nat_declaration.
-      --- simpl. reflexivity.
-      --- eapply const.
+    -- eapply e_function_declaration.
       --- reflexivity.
-    -- eapply e_dowhile_s1_break_s2.
-      --- eapply b_egal. 
-        ---- eapply var.
-        ---- eapply const.
-        ---- unfold Begal. simpl. reflexivity.
+      --- simpl. reflexivity.
       --- intuition.
-      --- eapply e_seq.
-        ---- eapply e_nat_assignment.
-          ----- simpl. reflexivity.
-          ----- eapply const.
-          ----- intuition.
-        ---- eapply e_nat_assignment.
-          ----- simpl. reflexivity.
-          ----- eapply min.
-            ------ eapply var.
+    -- eapply e_seq.
+      --- eapply e_nat_declaration.
+        ---- simpl. reflexivity.
+        ---- eapply const.
+        ---- intuition.
+      --- eapply  e_function_call.
+        ---- simpl. reflexivity.
+        ---- intuition.
+        ---- eapply e_seq.
+          ----- eapply  e_bool_declaration.
+            ------ simpl. reflexivity.
+            ------ unfold update. eapply b_con.
+            ------ intuition.
+          ----- eapply e_nat_assignment.
+            ------ simpl. reflexivity.
             ------ eapply const.
-            ------  unfold Asub. simpl. reflexivity.
-          -----intuition.
+            ------ intuition.
  - unfold update. simpl. reflexivity.
 Qed.
 
+
 (*
+Definition program :=
+  function "do_something"  &  void  &  { (IBool "b" ::= bcon (Cbool false) ;; "a" :n= 15) } ;;
+  INat "a"  ::= 10 ;;
+  CALL ? "do_something" ?
+.
+
+Example function_decl_and_call : exists ENV, program -T env0 T-> ENV /\ ENV "a" = res_nat 15.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_function_declaration.
+      --- reflexivity.
+      --- simpl. reflexivity.
+      --- intuition.
+    -- eapply e_seq.
+      --- eapply e_nat_declaration.
+        ---- simpl. reflexivity.
+        ---- eapply const.
+        ---- intuition.
+      --- eapply  e_function_call.
+        ---- simpl. reflexivity.
+        ---- intuition.
+        ---- eapply e_seq.
+          ----- eapply  e_bool_declaration.
+            ------ simpl. reflexivity.
+            ------ unfold update. eapply b_con.
+            ------ intuition.
+          ----- eapply e_nat_assignment.
+            ------ simpl. reflexivity.
+            ------ eapply const.
+            ------ intuition.
+ - unfold update. simpl. reflexivity.
+Qed.
+
+Definition program :=
+  function "do_something"  &  void  &  { IBool "b" ::= bcon (Cbool false) } ;;
+  INat "a"  ::= 10 ;;
+  CALL ? "do_something" ?
+.
+
+Example function_decl_and_call : exists ENV, program -T env0 T-> ENV /\ ENV "b" = res_bool false.
+Proof.
+  eexists.
+  split.
+  - unfold program. eapply e_seq.
+    -- eapply e_function_declaration.
+      --- reflexivity.
+      --- simpl. reflexivity.
+      --- intuition.
+    -- eapply e_seq.
+      --- eapply e_nat_declaration.
+        ---- simpl. reflexivity.
+        ---- eapply const.
+        ---- intuition.
+      --- eapply  e_function_call.
+        ---- simpl. reflexivity.
+        ---- intuition.
+        ---- eapply  e_bool_declaration.
+          ----- simpl. reflexivity.
+          ----- unfold update. eapply b_con.
+          -----intuition.
+ - unfold update. simpl. reflexivity.
+Qed.
 
 
 Definition program := INat "a"  ::= 10 ;;
@@ -1331,4 +1414,4 @@ Proof.
 Qed.
   
 *)
-
+ 
